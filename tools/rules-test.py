@@ -11,7 +11,7 @@ on every frame, so a seeded playthrough desyncs with frame timing (verified: the
 revision scored 780 and 687 on two runs).
 """
 import subprocess, re, os, json, sys
-os.chdir('/Users/kimjaehoon/Mobile-test')
+os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
 TEST = """<script>
 window.addEventListener('load', () => setTimeout(() => {
  try {

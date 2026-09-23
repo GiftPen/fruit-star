@@ -8,7 +8,7 @@ Covers the two faults found in the 2026-09-08 item audit:
 Uses the ?test=1 hook in index.html.
 """
 import subprocess, re, os, json, sys
-os.chdir('/Users/kimjaehoon/Mobile-test')
+os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
 TEST = r"""<script>
 window.__err = [];
 window.addEventListener('error', e => window.__err.push(e.message + ' @' + e.lineno));

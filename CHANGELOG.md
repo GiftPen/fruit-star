@@ -1,6 +1,6 @@
 # Bloom / Fruit Star — 변경 이력
 
-> 게임명 **Fruit Star**로 확정. 라이브: https://giftpen.github.io/Mobile-test/
+> 게임명 **Fruit Star**로 확정. 라이브: https://giftpen.github.io/fruit-star/
 
 ## ver.0.3.0 — 2026-09-03 (KST)
 
@@ -67,7 +67,7 @@
 
 ## ver.0.0.1 — 2026-09-02 10:58 (KST)
 
-첫 플레이 가능 빌드. 라이브: https://giftpen.github.io/Mobile-test/
+첫 플레이 가능 빌드. 라이브: https://giftpen.github.io/fruit-star/
 
 ### 코어
 - 빈 칸에 "다음 색"을 놓으면 주변 **3×3**이 터짐
