@@ -1369,6 +1369,17 @@
   const MILESTONE_STEP = 1000; // TEST value (now); SHIP = 5000 points per difficulty step
   let MAX_LEVEL = 10;          // auto-computed at boot from where every difficulty knob caps
   const WAVE_STEP_MS = 83;     // time between chain steps (rings)
+  // ---- cluster payoff tiers ----
+  // Scaling ONE effect with the cluster size only makes it louder; a 20-cluster looked like a
+  // 3-cluster played twenty times. Each tier ADDS a kind of event the smaller ones do not
+  // have, so the difference is in kind, not volume:
+  //   1  juice splats  — the pop marks the board; the plate reacts for the first time
+  //   2  hitstop + shockwave — time stops and the neighbouring cells are physically shoved
+  //   3  colour wash — the whole screen takes the fruit's colour for a moment
+  // The outward pop wave (POP_STAGGER_MS) already existed; this rides on it.
+  const TIER_SPLAT = 5, TIER_SHOCK = 7, TIER_WASH = 10;
+  const clusterTier = n => (n >= TIER_WASH ? 3 : n >= TIER_SHOCK ? 2 : n >= TIER_SPLAT ? 1 : 0);
+  const HITSTOP_MS = 70;       // long enough to feel, short enough not to read as a stutter
   const POP_STAGGER_MS = 38;   // delay per unit of DISTANCE from the blast (not per cell):
                                // cells at the same radius pop together, so a bomb reads as
                                // one expanding ring (~110ms) instead of 24 staggered cells
@@ -1960,6 +1971,10 @@
   let links = [];             // {nodes,color,prog,reached,done} star one-stroke constellation
   let shake = 0;              // screen-shake magnitude
   let flash = 0;              // white screen flash (0..1) when the star finishes
+  let splats = [];            // tier 1: juice left on the plate where a big cluster went
+  let shock = null;           // tier 2: {cx, cy, t} shove radiating through the cells
+  let wash = null;            // tier 3: {col, t} full-screen colour wash
+  let hitstop = 0;            // tier 2: ms of frozen animation still owed
   let dirty = true;           // redraw needed; when idle we skip drawing to save battery/heat
   let frame = 0;              // frame counter for idle animations (e.g. bomb wiggle)
   const fruitImg = [];        // loaded SVG Images per color slot
@@ -2267,6 +2282,7 @@
 
   function resetEffects() {
     particles = []; birds = []; flares = []; waves = []; links = []; floats = []; clearCoinFly();
+    splats = []; shock = null; wash = null; hitstop = 0;
     shake = 0; flash = 0; dirty = true;
   }
   function randInt(n) { return Math.floor(Math.random() * n); }
@@ -5832,6 +5848,17 @@
     const PENTA = [0, 2, 4, 7, 9, 12, 16];
     const FRUIT_NOTE = [0, 2, 3, 1, 4, 5, 6];   // fruit index -> rung, by FRUIT_POINTS order
     const hz = semi => 330 * Math.pow(2, semi / 12);
+    // `step` is how far into the cluster's outward wave this pop is. Every cell used to fire
+    // the SAME note, so a 15-fruit clear was one note played fifteen times -- mud, and no
+    // sense of the clear building. Each ring climbs the pentatonic scale instead, which is
+    // the cascade sound every match-3 uses. Capped so a huge clear does not end up shrieking,
+    // and the fruit's own note still sets where the run starts.
+    // Split out as a plain function so the pitch itself can be asserted; testing that the
+    // caller merely PASSED a step proved nothing -- dropping the term still passed.
+    const POP_STEP_SEMIS = 2, POP_STEP_CAP = 12;
+    const popHz = (i, step = 0) =>
+      hz(PENTA[FRUIT_NOTE[i] == null ? 0 : FRUIT_NOTE[i]]
+         + Math.min(POP_STEP_CAP, (step || 0) * POP_STEP_SEMIS)) * 2;
 
     // Five takes on "과즙이 터진다". The physical reference matters: a bubble or droplet
     // collapsing sweeps its resonance UP, not down -- a falling sweep reads as a thud. The
@@ -5903,7 +5930,7 @@
       },
       // The main sound, and still being chosen -- see POP_STYLES. ?pop=1 cycles them on a
       // phone, because this is the one thing that cannot be judged from the code.
-      pop: i => POP_STYLES[popStyle].play(hz(PENTA[FRUIT_NOTE[i] == null ? 0 : FRUIT_NOTE[i]]) * 2),
+      pop: (i, step = 0) => POP_STYLES[popStyle].play(popHz(i, step)),
       gain: size => {                       // the payoff, fuller with the cluster but under it
         const k = Math.min(1, size / 12);
         tone({ f: 330, dur: 0.20 + k * 0.12, vol: 0.11 + k * 0.10, type: "triangle" });
@@ -5960,7 +5987,9 @@
       expire:() => tone({ f: 400, f2: 190, dur: 0.22, vol: 0.16, type: "triangle" }),
     };
 
-    function play(name, arg) { const f = S[name]; if (f && live()) f(arg); }
+    // ...args, not one: the pop sound needs the fruit AND how far into the cluster's wave it
+    // is, and a one-arg forwarder silently dropped the second and left every ring on one note
+    function play(name, ...args) { const f = S[name]; if (f && live()) f(...args); }
     function setMuted(v) {
       muted = !!v;
       try { LS.set("fs_mute", muted ? "1" : "0"); } catch (e) {}
@@ -5981,7 +6010,7 @@
       crackerStyle = k;
       try { LS.set("fs_brick", k); } catch (e) {}
     }
-    return { play, unlock, resume, setMuted, setVolume, names: Object.keys(S),
+    return { play, unlock, resume, setMuted, setVolume, names: Object.keys(S), popHz,
              POP_STYLES, POP_KEYS, setPopStyle, get popStyle() { return popStyle; },
              CRACKER_STYLES, CRACKER_KEYS, setCrackerStyle, get crackerStyle() { return crackerStyle; },
              get voices() { return voices; }, get MAX_VOICES() { return MAX_VOICES; },
@@ -6279,6 +6308,10 @@
     let chainPopped = 0;     // only your own color-chain pops (for item generation)
     let pointsPopped = 0;    // sum of FRUIT_POINTS of every popped fruit (for scoring)
     let coined = 0;                // how many of the cleared fruit were carrying a coin
+    // How many rings out from the tap this is. The pop note climbs with it, so a big clear
+    // is heard as a run up the scale. NOT it.d -- that is the offset WITHIN a ring and is
+    // always 1 or 1.41, which put every pop in a 20-fruit clear on the same note.
+    let ringIndex = 0;
     const hitCrackers = new Map();   // cracker key -> number of adjacent pops (1 HP each)
     // A blast does not CHIP a cracker, it consumes it whole: budsAround hands crackers straight
     // to the frontier, which clears them without ever touching hitCrackers. So a cracker taken by
@@ -6359,6 +6392,7 @@
       // cells in dr/dc order, so a bomb used to wipe top-to-bottom instead of outward.
       frontier.sort((a, b) => (a.d || 0) - (b.d || 0));
       const ringAt = performance.now();
+      const ringDepth = ringIndex;      // captured: the timers below fire after ringIndex moves
       for (const it of frontier) {
         const { r, c, mode } = it;
         const cellColor = grid[r][c];
@@ -6392,7 +6426,7 @@
           burst(r, c, cellColor < 0 ? "#9aa0b5" : vis);
           if (cellColor === CRACKER && !crackerHeard.has(popAt)) { crackerHeard.add(popAt); SFX.play("cracker"); }
           popScoreText(r, c, cellColor, asItem ? ITEM_SCORE[sp] : fruitScoreAt(r, c, cellColor));
-          if (cellColor >= 0) SFX.play("pop", cellColor);
+          if (cellColor >= 0) SFX.play("pop", cellColor, ringDepth);
           if (cellColor >= 0 && !asItem) notify("onFruitPop", { r, c, color: cellColor });
           if (carried) addCoins(1, r, c);        // its coin flies when the fruit actually pops
           glow[r][c] = { c: vis, t: 1 };
@@ -6506,6 +6540,7 @@
       // when the outermost pop of this ring will have fired
       visualEnd = Math.max(visualEnd, ringAt + maxD);
       frontier = next;
+      ringIndex++;
       setTimeout(step, WAVE_STEP_MS);
     }
     step();
@@ -6664,6 +6699,7 @@
         const sub = multLabel(chainBonus(color === 4 ? cleared + grapeBulk : cleared), streakMult(color));
         setTimeout(() => showGain(r0, c0, gained, POP_COLORS[color] || "#fff", sub), totalAt);
         addShake(Math.min(12, cleared * 0.7));
+        clusterPayoff(r0, c0, cleared, color, totalAt);
 
         // reward: item tier from YOUR color group only (chainCount), not item cascades.
         // items now sit on the board — tap them, or chain into them, to trigger.
@@ -7741,6 +7777,39 @@
     }
   }
 
+  // Everything a big cluster gets that a small one does not. Called once, after the flood has
+  // resolved, so `cleared` is final; the outward pop wave is still playing out and these ride
+  // on top of it. `endMs` is when that wave lands.
+  function clusterPayoff(r0, c0, cleared, color, endMs) {
+    const tier = clusterTier(cleared);
+    if (!tier) return;
+    const col = COLORS[color] || "#fff";
+    const cx = pad + c0 * cell + cell / 2, cy = pad + r0 * cell + cell / 2;
+
+    // 1 — juice marks the plate. The board has never reacted to anything before this.
+    const n = Math.min(10, 2 + ((cleared / 2) | 0));
+    const reach = 1 + tier;
+    for (let i = 0; i < n; i++) {
+      const rr = r0 + ((fxRnd() * (reach * 2 + 1)) | 0) - reach;
+      const cc = c0 + ((fxRnd() * (reach * 2 + 1)) | 0) - reach;
+      if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) continue;
+      splats.push({ r: rr, c: cc, t: 1, color: col,
+                    rad: 0.22 + fxRnd() * 0.20, dx: fxRnd() - 0.5, dy: fxRnd() - 0.5,
+                    wait: Math.hypot(rr - r0, cc - c0) * POP_STAGGER_MS });
+    }
+    if (tier < 2) { dirty = true; return; }
+
+    // 2 — time stops, and the cells get shoved away from the epicentre
+    hitstop = Math.max(hitstop, HITSTOP_MS);
+    shock = { cx, cy, t: 0, color: col, power: Math.min(1, cleared / 16) };
+
+    if (tier < 3) { dirty = true; return; }
+
+    // 3 — the screen takes the fruit's colour as the wave lands
+    setTimeout(() => { wash = { color: col, t: 1 }; dirty = true; }, endMs);
+    dirty = true;
+  }
+
   // floating "+N" that rises from the cell you acted on (colored by fruit)
   // which multipliers turned the ingredients into the total
   // "덩어리" -- what this multiplier measures is the size of the connected same-colour group
@@ -8180,14 +8249,22 @@
   }
 
   function draw(ts) {
-    const k = frameK(ts) * FX_SPEED;  // consumed even on the early returns below, so a skipped
+    let k = frameK(ts) * FX_SPEED;    // consumed even on the early returns below, so a skipped
                                       // idle frame does not pile up into a jump on the next one
+    // Hitstop. Freezing the clock is what sells weight -- particles, shake and the flash all
+    // hang for a moment and then snap back. The pop wave is on setTimeout and keeps its own
+    // schedule, so the fruit still disappears on time; only the motion holds.
+    if (hitstop > 0) {
+      hitstop -= (k / FX_SPEED) * FRAME_STEP_MS;
+      k = 0;
+    }
     if (!grid || !glow) { requestAnimationFrame(draw); return; } // not started yet
 
     // idle-skip: when nothing is animating and no change is pending, don't redraw (saves heat)
     let live = particles.length || birds.length || flares.length || waves.length || links.length
              || floats.length || coinsShown !== coins
-             || shake > 0.3 || flash > 0.01;
+             || shake > 0.3 || flash > 0.01
+             || splats.length || shock || wash || hitstop > 0;
     if (!live) for (let r = 0; r < ROWS && !live; r++) for (let c = 0; c < COLS; c++)
       if (glow[r][c] || appear[r][c] > 0 || special[r][c] === "bomb") { live = true; break; }
     if (!dirty && !live) { requestAnimationFrame(draw); return; }
@@ -8196,6 +8273,17 @@
 
     // clear the whole canvas in raw pixels (so shake leaves no smear), keep dpr transform
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.restore();
+
+    // ---- cluster payoff: age the three tier channels on the shared clock ----
+    const ms = k * FRAME_STEP_MS;          // this frame's worth of milliseconds
+    for (let i = splats.length - 1; i >= 0; i--) {
+      const sp2 = splats[i];
+      if (sp2.wait > 0) { sp2.wait -= ms; continue; }
+      sp2.t -= 0.016 * k;
+      if (sp2.t <= 0) splats.splice(i, 1);
+    }
+    if (shock) { shock.t += 0.055 * k; if (shock.t >= 1) shock = null; }
+    if (wash) { wash.t -= 0.055 * k; if (wash.t <= 0) wash = null; }
 
     // screen shake
     let ox = 0, oy = 0;
@@ -8209,11 +8297,39 @@
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
-        const x = pad + c * cell, y = pad + r * cell;
+        let x = pad + c * cell, y = pad + r * cell;
         const g = boardPx * 0.006;
+        // tier 2 shockwave: the ring shoves each cell outward as it passes, so the board
+        // itself moves instead of just being a backdrop for particles
+        if (shock) {
+          const dx = x + cell / 2 - shock.cx, dy = y + cell / 2 - shock.cy;
+          const dist = Math.hypot(dx, dy) || 1;
+          const front = shock.t * boardPx * 0.9;          // where the ring is now
+          const band = Math.max(1, cell * 0.9);           // how thick it is
+          const near = 1 - Math.min(1, Math.abs(dist - front) / band);
+          if (near > 0) {
+            const push = near * near * cell * 0.20 * shock.power * (1 - shock.t);
+            x += (dx / dist) * push; y += (dy / dist) * push;
+          }
+        }
         // empty cell
         ctx.fillStyle = PLATE.cell;
         roundRect(x + g, y + g, cell - g*2, cell - g*2, cell*0.22); ctx.fill();
+
+        // juice on the plate, clipped to the cell so it reads as a stain and not a blob
+        for (let si = 0; si < splats.length; si++) {
+          const sp2 = splats[si];
+          if (sp2.r !== r || sp2.c !== c || sp2.wait > 0) continue;
+          ctx.save();
+          roundRect(x + g, y + g, cell - g*2, cell - g*2, cell*0.22); ctx.clip();
+          ctx.globalAlpha = Math.max(0, sp2.t) * 0.30;
+          ctx.fillStyle = sp2.color;
+          ctx.beginPath();
+          ctx.arc(x + cell * (0.5 + sp2.dx * 0.34), y + cell * (0.5 + sp2.dy * 0.34),
+                  cell * sp2.rad * (1.6 - sp2.t * 0.6), 0, PI2);
+          ctx.fill();
+          ctx.restore();
+        }
 
         // 오염된 땅. The permanent pair is a different colour and carries no price, so there
         // is nothing to try and buy: you can see at a glance which two are never coming back.
@@ -8695,6 +8811,16 @@
       ctx.restore();
       flash *= Math.pow(0.855, k);
     } else flash = 0;
+
+    // tier 3: the plate takes the fruit's colour for a moment. Not white like the star's
+    // flash -- a 10+ lemon cluster should read as YELLOW, so the colour is the reward.
+    if (wash) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, wash.t) * 0.26;
+      ctx.fillStyle = wash.color;
+      roundRect(0, 0, boardPx, boardH, 18); ctx.fill();
+      ctx.restore();
+    }
 
     ctx.restore();   // end screen-shake transform
     dirty = false;
@@ -9574,6 +9700,10 @@
       renderStats,
       mfxStart, mfxStop, mfxFrame, MFX_STEP_MS, MFX_MAX_K, get mfxOn() { return mfxOn; },
       frameK, FRAME_STEP_MS, FRAME_MAX_K, FX_SPEED,
+      clusterTier, clusterPayoff, TIER_SPLAT, TIER_SHOCK, TIER_WASH, HITSTOP_MS,
+      POP_STAGGER_MS,
+      get splats() { return splats; }, get shock() { return shock; },
+      get wash() { return wash; }, get hitstop() { return hitstop; },
       resetFrameClock: () => { frameLast = -1; },
       get particles()   { return particles; },
       get waves()       { return waves; },
