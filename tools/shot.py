@@ -17,6 +17,9 @@ SCREENS = {
   'set':   "D.getElementById('btn-settings').click();",
   # the +1 drawer: it hangs off a HUD chip, and a clipped/mispositioned drawer is invisible
   # to every test that only reads classes
+  # the desktop rails with a live streak and coins, which is what they look like in play
+  'rails': ("D.getElementById('btn-challenge').click(); F.coins = 1450; F.streak = 6;"
+            " F.score = 54608; F.stage = 10; F.updateHUD();"),
   'spawn': ("D.getElementById('btn-challenge').click(); F.coins = 120;"
             " F.updateHUD(); D.getElementById('rs-spawn-chip').click();"),
   # the odds popup's stat table, scrolled to the item thresholds

@@ -91,7 +91,10 @@
   body.wide #hint { grid-area: hint; }
   body.wide #rush-next { grid-area: next; }
   /* the rails own their children's width now, so the horizontal HUD rows become stacks */
-  body.wide .rail #top { flex-direction: column; gap: 8px; width: 100%; }
+  /* #top is a 3-column GRID (side columns keep the score centred), so flex-direction alone
+     did nothing and the pause button stayed beside the stage. In the rail it is one column. */
+  body.wide .rail #top { display: flex; flex-direction: column; align-items: center;
+    gap: 8px; width: 100%; padding: 0; }
   body.wide .rail .top-left { justify-content: center; flex-wrap: wrap; }
   body.wide .rail #stats, body.wide .rail #rush-bar {
     flex-wrap: wrap; justify-content: center; }
@@ -119,16 +122,49 @@
   body.wide .rail #ishop {
     display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: auto; margin-top: 0; }
   body.wide .rail #ishop .ib { max-width: none; width: 100%; height: 54px; }
+  /* ---- the rails read top-down, not centred: the eye starts at the top of each column ---- */
+  body.wide .rail { align-self: stretch; justify-content: flex-start; padding-top: 2px; }
+  /* LEFT, one row each: pause / stage / score+best / combo / goal / touches */
+  body.wide .rail #top > * { justify-self: center; align-self: center; }
+  body.wide .rail .top-left { width: 100%; justify-content: center; }
+  /* min-width:0 throughout: without it the score line's intrinsic width pushed the whole
+     column past the rail and the streak badge hung 100px off the left edge */
+  body.wide .rail #rush-box { display: flex; flex-direction: column; align-items: center;
+    gap: 6px; width: 100%; min-width: 0; }
+  body.wide .rail .rb-stage { font-size: 20px; }
+  body.wide .rail .rb-stage b { font-size: 24px; }
+  body.wide .rail #rush-box .best-line {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+    width: 100%; min-width: 0; margin-top: 0; font-size: 13px; }
+  /* the streak drops onto its own line under the score, and it is the headline it deserves */
+  body.wide .rail #streak-badge2 { order: 2; flex: 1 0 100%; min-width: 0; text-align: center;
+    font-size: 22px; margin-right: 0; }
   /* ---- the right rail's own stack: NEXT, the tabs, the purse, the items ---- */
   .next-lab { display: none; }
   body.wide .rail .next-lab {
-    display: block; width: 100%; text-align: center; font-size: 11px; font-weight: 800;
-    letter-spacing: 2px; color: var(--muted); margin-bottom: 2px; }
+    display: block; width: 100%; text-align: center; font-size: 18px; font-weight: 900;
+    letter-spacing: 3px; color: var(--text); margin-bottom: 4px; }
+  /* NEXT sits ABOVE the plate, not inside it */
   body.wide .rail #next-wrap {
-    justify-self: stretch; flex-wrap: wrap; width: 100%; padding: 8px 6px; }
-  /* the purse and the per-turn chip sit on one line, the same width as the item pad */
-  body.wide .rail #rb-chips {
-    display: flex; justify-content: center; gap: 8px; width: 100%; margin-left: 0; }
+    justify-self: stretch; flex-direction: column; align-items: center; width: 100%;
+    background: none; padding: 0; }
+  body.wide .rail #np-box { padding: 10px 12px; border-radius: 18px; }
+  body.wide .rail #np-now  { width: 62px; height: 62px; }
+  body.wide .rail #np-next { width: 40px; height: 40px; }
+  /* 확률 / 유물 / 특성 on ONE line */
+  body.wide .rail #rb-left { flex-wrap: nowrap; justify-content: center; gap: 4px; }
+  body.wide .rail #rb-left .chip,
+  body.wide .rail #rb-left button { padding: 4px 7px; font-size: 11px; }
+  /* the purse and the per-turn chip: one line, and the SAME height -- a chip and a button
+     do not agree on line-height on their own, and it showed */
+  body.wide .rail #rb-mid { display: flex; justify-content: center; align-items: center;
+    gap: 8px; width: 100%; }
+  /* `body.rush-chrome #rush-bar .chip` sets the height and padding and lands later in the
+     sheet at equal specificity, so this has to out-rank it rather than merely follow it.
+     And the global `button { margin-top: 8px }` was pushing the ➕ chip 8px below the purse --
+     which is exactly the misalignment that was visible in the screenshot. */
+  body.wide .rail #rb-mid > .chip { height: 30px; margin: 0; display: inline-flex;
+    align-items: center; box-sizing: border-box; }
   /* 360px tall is Poki's shortest canvas and the rail now holds four blocks: everything
      gives a little so the stack still fits instead of running off the bottom */
   @media (max-height: 520px) {
@@ -196,7 +232,10 @@
   .score-val { font-size: 34px; font-weight: 700; line-height: 1; }
   .best-line { font-size: 12px; color: var(--muted); margin-top: 4px; letter-spacing: .5px; }
   .best-line b { color: var(--text); font-weight: 700; }
-  #next-wrap { justify-self: end; display: flex; align-items: center; justify-content: center; gap: 3px;
+  #next-wrap { justify-self: end; display: flex; align-items: center; justify-content: center; }
+  /* the plate the preview sits on. Split out of #next-wrap so the NEXT label can live
+     outside it rather than inside the same rounded box. */
+  #np-box { display: flex; align-items: center; justify-content: center; gap: 3px;
     padding: 5px 7px; background: var(--cell); border-radius: 16px; overflow: hidden; }
   #np-now  { width: 50px; height: 50px; display: block; }
   #np-next { width: 32px; height: 32px; display: block; opacity: .72; }
@@ -300,11 +339,12 @@
   body.rush-chrome #rush-bar .chip { height: 28px; display: inline-flex; align-items: center;
     font-size: 13px; padding: 0 10px; }
   /* the preview stands beside 남은 터치, at the band's height */
-  body.rush-chrome #next-wrap { padding: 2px 5px; }
+  body.rush-chrome #np-box { padding: 2px 5px; }
   body.rush-chrome #np-now  { width: 38px; height: 38px; }
   body.rush-chrome #np-next { width: 25px; height: 25px; }
   /* the combo speaks at the score's size, immediately to its left */
   #streak-badge2 { font-size: inherit; font-weight: 800; margin-right: 6px; }
+  .sb-in { display: inline-block; }
   #odds-ic { width: 17px; height: 17px; display: block; }
   /* the same chip as 확률: one strip, one height, three doors */
   .hud-tab-btn { height: 28px; margin: 0; padding: 0 9px; border-radius: 12px;
@@ -1171,8 +1211,10 @@
     </div>
     <div id="next-wrap">
       <span class="next-lab" data-i18n="nextLabel">NEXT</span>
-      <canvas id="np-now"  width="128" height="128"></canvas>
-      <canvas id="np-next" width="128" height="128"></canvas>
+      <div id="np-box">
+        <canvas id="np-now"  width="128" height="128"></canvas>
+        <canvas id="np-next" width="128" height="128"></canvas>
+      </div>
     </div>
   </div>
 
@@ -8009,7 +8051,6 @@
       if (mult > 1) {
         // over the cap only lemon gets there, so say which fruit the number belongs to
         const over = lemonFree && mult > STREAK_CAP;
-        b.textContent = (over ? "🍋 ×" : "🔥 ×") + mult.toFixed(1);
         b.classList.add("on");
         // The pop was the same 1.35 whether you were on your second success or your
         // twentieth, so a long streak looked identical to a short one. It grows with the
@@ -8018,9 +8059,16 @@
         const heat = Math.min(1, streak / COMBO_HEAT_FULL);
         b.classList.toggle("hot", streak >= COMBO_HEAT_FROM);
         b.style.setProperty("--heat", heat.toFixed(2));
-        b.animate([{ transform: `scale(${(1.3 + heat * 0.45).toFixed(2)})` },
-                   { transform: "scale(1)" }],
-                  { duration: 180 + heat * 120, easing: "ease-out" });
+        // Scale an inner, text-sized span rather than the badge itself. In the desktop rail
+        // the badge is a full-width row, and scaling THAT by 1.57 threw an invisible 208px
+        // box 60px past each edge of the rail -- off-screen entirely on a 640x360 canvas.
+        let inner = b.querySelector(".sb-in");
+        if (!inner) { b.textContent = ""; inner = document.createElement("span");
+                      inner.className = "sb-in"; b.appendChild(inner); }
+        inner.textContent = (over ? "🍋 ×" : "🔥 ×") + mult.toFixed(1);
+        inner.animate([{ transform: `scale(${(1.3 + heat * 0.45).toFixed(2)})` },
+                       { transform: "scale(1)" }],
+                      { duration: 180 + heat * 120, easing: "ease-out" });
       } else {
         b.textContent = "";
         b.classList.remove("on", "hot");
