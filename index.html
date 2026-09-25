@@ -129,7 +129,7 @@
   /* Spread the blocks down the column when there is room, so the rails read as full rather
      than as a stack with a hole under it. Short canvases keep the tight top-aligned stack --
      there the content already fills the height and spreading would only overflow it. */
-  @media (min-height: 420px) {
+  @media (min-height: 560px) {
     body.wide .rail { justify-content: space-evenly; }
     /* the blocks take the slack themselves and spread their own rows, so the column is filled
        evenly instead of collecting all the air into one gap in the middle */
@@ -166,10 +166,21 @@
   body.wide .rail #np-box { padding: 10px 12px; border-radius: 18px; }
   body.wide .rail #np-now  { width: 62px; height: 62px; }
   body.wide .rail #np-next { width: 40px; height: 40px; }
-  /* 확률 / 유물 / 특성 on ONE line */
-  body.wide .rail #rb-left { flex-wrap: nowrap; justify-content: center; gap: 4px; }
+  /* 확률 / 유물 / 특성 on one line -- but only where three of them actually fit. The rail
+     tracks the viewport (19vw), and forcing nowrap below ~900px clipped the 확률 label
+     rather than wrapping it: measured 125px of content in a 120px box at 820px wide. */
+  body.wide .rail #rb-left { flex-wrap: wrap; justify-content: center; gap: 4px; }
   body.wide .rail #rb-left .chip,
-  body.wide .rail #rb-left button { padding: 4px 7px; font-size: 11px; }
+  body.wide .rail #rb-left button { padding: 4px 6px; font-size: 11px;
+    /* A guard, not the fix: the threshold below is what stops the row being forced onto one
+       line. This keeps a chip from caving if a label ever outgrows its slot some other way --
+       a longer translation, say. The failure it guards against is real (measured: 확률 was
+       squeezed to 38px around 46px of content) but no size in the suite reaches it today. */
+    flex: 0 0 auto; }
+  /* 1060px, measured, not guessed: three chips need ~162px and the rail is 0.19vw capped at
+     208, so the row only fits on one line from about there up. Below it they wrap, which is
+     the whole point of not letting them shrink. */
+  @media (min-width: 1060px) { body.wide .rail #rb-left { flex-wrap: nowrap; } }
   /* the purse and the per-turn chip: one line, and the SAME height -- a chip and a button
      do not agree on line-height on their own, and it showed */
   body.wide .rail #rb-mid { display: flex; justify-content: center; align-items: center;
@@ -182,7 +193,7 @@
     align-items: center; box-sizing: border-box; }
   /* 360px tall is Poki's shortest canvas and the rail now holds four blocks: everything
      gives a little so the stack still fits instead of running off the bottom */
-  @media (max-height: 419px) {
+  @media (max-height: 559px) {
     /* Short canvases need every pixel: the rails go back to spanning the hint and the
        next-stage rows as well, because on a 360px-tall board row alone the right rail does
        not fit and pushed itself off the top of the screen. */

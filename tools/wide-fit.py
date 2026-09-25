@@ -17,7 +17,10 @@ Window size does not set innerWidth in headless Chrome, so the game runs in an i
 target size -- what this measures is what a browser at that size shows."""
 import subprocess, os, re, json, sys
 
-SIZES = [(640, 360), (836, 470), (1031, 580), (1280, 720), (1920, 1080)]
+# Narrow desktops matter as much as the Poki canvases: the rails track the viewport width,
+# and the widths where they get tight are exactly where labels start to clip.
+SIZES = [(640, 360), (836, 470), (1031, 580), (700, 560), (820, 620), (900, 700),
+         (1024, 768), (1280, 720), (1920, 1080)]
 PORTRAIT = [(390, 844), (320, 568)]      # wide mode must not steal these
 CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
@@ -36,10 +39,13 @@ f.onload = () => setTimeout(() => {{
     F.layout();
     setTimeout(() => {{
       const out = {{ wide: F.wideOn, vw: W.innerWidth, vh: W.innerHeight,
-                    board: F.boardPx || 0, boardMax: F.BOARD_MAX, outside: [], clipped: [],
-                    rails: {{}} }};
+                    board: F.boardPx || 0, boardMax: F.BOARD_MAX, rail: F.railPx(),
+                    outside: [], clipped: [], rails: {{}} }};
       const ids = ['rail-l','rail-r','top','rush','rush-bar','stage-wrap','ishop','hint',
-                   'rush-next','rb-quota','rb-touch','rs-spawn-chip'];
+                   'rush-next','rb-quota','rb-touch','rs-spawn-chip',
+                   // the tab row squashed its 확률 button to 14px on a narrow desktop while
+                   // every container around it still measured fine: the overflow was inside
+                   'rb-left','rb-mid','next-wrap','rs-coin','info-btn','relic-btn','trait-btn'];
       for (const id of ids) {{
         const e = D.getElementById(id);
         if (!e || e.offsetParent === null && getComputedStyle(e).display === 'none') continue;
@@ -102,16 +108,21 @@ for (w, h) in SIZES:
             fails.append(f"{tag}: {o[0]} 화면 밖 (l{o[1]} t{o[2]} r{o[3]} b{o[4]}, 뷰포트 {w}x{h})")
         for c in d['clipped']:
             fails.append(f"{tag}: {c[0]} 가로 잘림 ({c[1]}px 내용 / {c[2]}px 표시)")
+        for sp in d.get('spill', []):
+            fails.append(f"{tag}: {sp[1]} 가 {sp[0]} 밖으로 넘침 "
+                         f"(왼쪽 {sp[2]:+}px, 오른쪽 {sp[3]:+}px)")
         # the HUD really has to be in the rails, not just styled as if it were
         for k, want in (('top', 'rail-l'), ('rush', 'rail-l'),
                         ('rush-bar', 'rail-r'), ('ishop', 'rail-r')):
             if d['rails'].get(k) != want:
                 fails.append(f"{tag}: {k} 가 {d['rails'].get(k)} 에 있음 (기대 {want})")
-        # ...and the board must actually use the canvas, not sit in a thin column. BOARD_MAX
-        # is a deliberate ceiling -- past it the cells get silly -- so the bar is whichever
-        # of "the height on offer" and "the cap" is smaller.
+        # ...and the board must actually use the canvas, not sit in a thin column. Three
+        # things can legitimately cap it: BOARD_MAX (past it the cells get silly), the height
+        # on offer, and -- on a narrow desktop -- the width the two rails leave behind. The
+        # bar is the smallest of them; using height alone failed 700x560, where the board is
+        # width-bound and perfectly correct.
         bw, bh = d['boardBox'][2], d['boardBox'][3]
-        want = min(d['boardMax'], h - 92)
+        want = min(d['boardMax'], h - 92, w - d['rail'] * 2 - 56)
         if bh < want * 0.85:
             fails.append(f"{tag}: 보드가 높이를 못 씀 ({bh}px / 기대 {want}px 이상)")
         cx = d['boardBox'][0] + bw / 2
