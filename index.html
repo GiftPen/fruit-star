@@ -73,7 +73,9 @@
   body.wide {
     display: grid;
     grid-template-columns: var(--rail) minmax(0, 1fr) var(--rail);
-    grid-template-areas: "l board r" "l hint r" "l next r";
+    /* the rails line up with the BOARD, not with the board plus everything under it: the
+       three columns then start and end together instead of the sides trailing off */
+    grid-template-areas: "l board r" ". hint ." ". next .";
     grid-template-rows: auto auto auto;
     align-content: center; justify-items: center; align-items: center;
     column-gap: 16px; row-gap: 4px;
@@ -123,7 +125,20 @@
     display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: auto; margin-top: 0; }
   body.wide .rail #ishop .ib { max-width: none; width: 100%; height: 54px; }
   /* ---- the rails read top-down, not centred: the eye starts at the top of each column ---- */
-  body.wide .rail { align-self: stretch; justify-content: flex-start; padding-top: 2px; }
+  body.wide .rail { align-self: stretch; justify-content: flex-start; }
+  /* Spread the blocks down the column when there is room, so the rails read as full rather
+     than as a stack with a hole under it. Short canvases keep the tight top-aligned stack --
+     there the content already fills the height and spreading would only overflow it. */
+  @media (min-height: 420px) {
+    body.wide .rail { justify-content: space-evenly; }
+    /* the blocks take the slack themselves and spread their own rows, so the column is filled
+       evenly instead of collecting all the air into one gap in the middle */
+    body.wide #rail-l > #top, body.wide #rail-l > #rush { flex: 1 1 auto; }
+    body.wide #rail-l > #top { justify-content: space-evenly; }
+    body.wide #rail-l > #rush { display: flex; align-items: center; }
+    body.wide #rail-l > #rush .rb-row { width: 100%; height: 100%;
+      align-content: space-evenly; align-items: center; }
+  }
   /* LEFT, one row each: pause / stage / score+best / combo / goal / touches */
   body.wide .rail #top > * { justify-self: center; align-self: center; }
   body.wide .rail .top-left { width: 100%; justify-content: center; }
@@ -167,7 +182,11 @@
     align-items: center; box-sizing: border-box; }
   /* 360px tall is Poki's shortest canvas and the rail now holds four blocks: everything
      gives a little so the stack still fits instead of running off the bottom */
-  @media (max-height: 520px) {
+  @media (max-height: 419px) {
+    /* Short canvases need every pixel: the rails go back to spanning the hint and the
+       next-stage rows as well, because on a 360px-tall board row alone the right rail does
+       not fit and pushed itself off the top of the screen. */
+    body.wide { grid-template-areas: "l board r" "l hint r" "l next r"; }
     body.wide .rail { gap: 6px; }
     body.wide .rail .next-lab { font-size: 9px; letter-spacing: 1px; margin-bottom: 0; }
     body.wide .rail #next-wrap { padding: 4px; }
