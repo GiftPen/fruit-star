@@ -106,7 +106,10 @@
   body.wide .rail #rush .rb-chips { margin-left: 0; flex-wrap: wrap; justify-content: center;
     width: 100%; }
   /* vw-based type is meaningless once the element is in a fixed-width rail */
-  body.wide .rail .rb-val { font-size: 26px; }
+  body.wide .rail .rb-val { font-size: 34px; letter-spacing: -1px; }
+  body.wide .rail .rb-lab { font-size: 12px; margin-top: 2px; }
+  body.wide .rail #rush .rb-row { gap: 14px; }
+  @media (max-height: 520px) { body.wide .rail .rb-val { font-size: 24px; } }
   /* #rb-left clips on purpose on a phone (the chips must never shove the board down). In a
      rail there is nothing to shove, and the clip ate the 확률 label. */
   body.wide .rail #rush-bar { flex-direction: column; gap: 8px; height: auto; }
@@ -116,6 +119,28 @@
   body.wide .rail #ishop {
     display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: auto; margin-top: 0; }
   body.wide .rail #ishop .ib { max-width: none; width: 100%; height: 54px; }
+  /* ---- the right rail's own stack: NEXT, the tabs, the purse, the items ---- */
+  .next-lab { display: none; }
+  body.wide .rail .next-lab {
+    display: block; width: 100%; text-align: center; font-size: 11px; font-weight: 800;
+    letter-spacing: 2px; color: var(--muted); margin-bottom: 2px; }
+  body.wide .rail #next-wrap {
+    justify-self: stretch; flex-wrap: wrap; width: 100%; padding: 8px 6px; }
+  /* the purse and the per-turn chip sit on one line, the same width as the item pad */
+  body.wide .rail #rb-chips {
+    display: flex; justify-content: center; gap: 8px; width: 100%; margin-left: 0; }
+  /* 360px tall is Poki's shortest canvas and the rail now holds four blocks: everything
+     gives a little so the stack still fits instead of running off the bottom */
+  @media (max-height: 520px) {
+    body.wide .rail { gap: 6px; }
+    body.wide .rail .next-lab { font-size: 9px; letter-spacing: 1px; margin-bottom: 0; }
+    body.wide .rail #next-wrap { padding: 4px; }
+    body.wide .rail #np-now  { width: 34px; height: 34px; }
+    body.wide .rail #np-next { width: 22px; height: 22px; }
+    body.wide .rail #ishop { gap: 4px; }
+    body.wide .rail #ishop .ib { height: 40px; }
+    body.wide .rail #rush-bar { gap: 4px; }
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0; height: 100%;
@@ -176,6 +201,7 @@
   #np-now  { width: 50px; height: 50px; display: block; }
   #np-next { width: 32px; height: 32px; display: block; opacity: .72; }
   #stats {
+    position: relative;        /* the danger label is pinned to this, not laid out in it */
     width: 100%; max-width: 520px; padding: 4px 18px 0;
     display: flex; align-items: center; gap: 8px;
   }
@@ -253,7 +279,8 @@
   .rb-lab { font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-top: 3px;
     white-space: nowrap; line-height: 13px; height: 13px; }
   .rb-div { width: 1px; align-self: stretch; margin: 3px 0 6px; background: var(--slot-edge); }
-  .rb-chips { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .rb-chips { margin-left: auto; display: flex; align-items: center; gap: 6px;
+    position: relative; padding-right: 0; }
   #rs-chrome { display: flex; align-items: center; gap: 6px; }
   /* row three: what you press and what you own, off the two rows that hold numbers */
   /* the strip the board-fill gauge used to sit on: short controls, nothing that holds a
@@ -349,9 +376,16 @@
                       100% { transform: scale(1); } }
   #rb-touch-cell.warn .rb-val, #rb-touch-cell.warn .rb-lab { color: #ffab3d; }
   #rb-touch-cell.low  .rb-val, #rb-touch-cell.low  .rb-lab { color: #ff5a5f; }
-  #danger-label2 { font-size: 12px; font-weight: 800; color: #ff5a5f; }
+  /* same reason as #danger-label: in the chip row it squeezed the goal cell by 21px and
+     shoved 남은 터치 with it, once per touch */
+  #danger-label2 { position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+    font-size: 12px; font-weight: 800; color: #ff5a5f; pointer-events: none; }
   #danger-label2.hidden { display: none; }
-  #danger-label { margin-left: auto; font-size: 12px; font-weight: 800; color: #ff5a5f; }
+  /* Out of flow on purpose. In the row it shifted all four chips 11px left the moment it
+     appeared, and the fill crosses the danger line every single turn -- so the whole HUD
+     twitched once per touch. Pinned, it cannot move anything. */
+  #danger-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; font-weight: 800; color: #ff5a5f; pointer-events: none; }
   #danger-label.hidden { display: none; }
   /* segmented board-fill / danger gauge (merges 남은블록 + 위기) */
   /* Hold-to-explain. A phone has no hover, so the only way to ask "what is this" without
@@ -393,6 +427,17 @@
   #streak-badge.on {
     padding: 1px 9px; border-radius: 999px; color: #ffcaa0;
     background: rgba(255,120,40,.16); border: 1px solid rgba(255,140,60,.5);
+  }
+  /* past the multiplier cap the number stops moving, so the badge carries the streak instead */
+  #streak-badge.hot, #streak-badge2.hot {
+    color: #fff2d6;
+    text-shadow: 0 0 calc(6px * var(--heat, 0)) rgba(255,160,60,.95),
+                 0 0 calc(14px * var(--heat, 0)) rgba(255,90,30,.7);
+  }
+  #streak-badge.hot {
+    background: rgba(255,120,40, calc(0.16 + 0.22 * var(--heat, 0)));
+    border-color: rgba(255,170,90, calc(0.5 + 0.45 * var(--heat, 0)));
+    box-shadow: 0 0 calc(10px * var(--heat, 0)) rgba(255,120,40,.5);
   }
   #hint { color: var(--muted); font-size: 13px; margin-top: 10px; height: 16px; }
   /* only appears once the quota is met: bank the touches you did not need, or play on for score */
@@ -1125,6 +1170,7 @@
       <span class="best-line"><span id="streak-badge2"></span><span data-i18n="score">점수</span> <b id="rb-score">0</b> · <span data-i18n="best">최고</span> <b id="rb-best">0</b></span>
     </div>
     <div id="next-wrap">
+      <span class="next-lab" data-i18n="nextLabel">NEXT</span>
       <canvas id="np-now"  width="128" height="128"></canvas>
       <canvas id="np-next" width="128" height="128"></canvas>
     </div>
@@ -1142,7 +1188,7 @@
       <div class="rb-cell" id="rb-quota-cell"><span class="rb-val" id="rb-quota">0/70</span><span class="rb-lab" id="rb-quota-lab" data-i18n="goal">목표</span></div>
       <div class="rb-div"></div>
       <div class="rb-cell" id="rb-touch-cell"><span class="rb-val" id="rb-touch">15</span><span class="rb-lab" data-i18n="touchesLeft">남은 터치</span></div>
-      <div class="rb-chips">
+      <div class="rb-chips" id="rb-chips">
         <span class="chip coin" id="rs-coin"><i class="cn"></i> <b id="rs-coin-v">0</b></span>
         <span id="rs-chrome"></span>
         <button class="chip chip-btn" id="rs-spawn-chip">➕ <b id="rs-spawn">1</b></button>
@@ -1390,13 +1436,36 @@
   // A canvas fill takes a colour string, not var(--board), so the two plate colours are read
   // out of the stylesheet whenever the theme changes and held here. Seeded with the dark
   // theme's values so the first frame is right even if it lands before applyTheme().
-  const PLATE = { bg: "#171a26", cell: "#262a3d" };
+  const PLATE = { bg: "#171a26", cell: "#262a3d",
+                  cellHi: "#3a3f55", cellLo: "#1b1e2b", edge: "#0f111a" };
+  // The whole empty board -- plate, vignette and every cell recess -- as ONE image. A
+  // per-cell version of this blitted 64+ times a frame and was catastrophically slower than
+  // the flat fill it replaced under software rasterisation: the item suite went from 59s to
+  // not finishing in 25 minutes. One blit is also the cheaper path on a real device.
+  let boardArt = null;
+  // Depth has to be DERIVED from the two plate colours, never written down: the four themes
+  // are a dark navy, brown wood, teal and blue-grey, and a hardcoded highlight that reads as
+  // light on navy reads as dirt on wood.
+  function mixHex(hex, towards, amt) {
+    const h = hex.replace("#", "");
+    const n = h.length === 3 ? h.split("").map(x => x + x).join("") : h;
+    const r = parseInt(n.slice(0, 2), 16), g = parseInt(n.slice(2, 4), 16), b = parseInt(n.slice(4, 6), 16);
+    const t = towards === "hi" ? 255 : 0;
+    const f = v => Math.round(v + (t - v) * amt);
+    return `rgb(${f(r)},${f(g)},${f(b)})`;
+  }
   function readPlate() {
     const cs = getComputedStyle(document.documentElement);
     const b = cs.getPropertyValue("--board").trim(), c = cs.getPropertyValue("--board-cell").trim();
     if (b) PLATE.bg = b;
     if (c) PLATE.cell = c;
+    PLATE.cellHi = mixHex(PLATE.cell, "hi", 0.16);   // lit lower edge of the recess
+    PLATE.cellLo = mixHex(PLATE.cell, "lo", 0.30);   // shadowed upper edge
+    PLATE.edge  = mixHex(PLATE.bg, "lo", 0.35);      // vignette toward the plate's rim
+    boardArt = null;                                 // the cached board must be redrawn
   }
+  const COMBO_HEAT_FROM = 4;   // streak at which the badge starts to glow
+  const COMBO_HEAT_FULL = 10;  // ...and where that glow tops out
   const SHAKE_MAX = 16;        // screen-shake cap (px)
   const BURST_RADIUS = 1;      // 1 = 3x3 burst (Chebyshev). items can raise this later
   // streak multiplier: +0.2 per consecutive success, capped at ×2.0 (1.2/1.4/1.6/1.8/2.0)
@@ -2043,24 +2112,39 @@
   const wideChromeH = () => WIDE_CHROME_H;
   const isWide = () => usableW() >= WIDE_MIN_W && usableW() / usableH() >= WIDE_RATIO;
   // Which HUD block goes to which rail. Left is "what is going on", right is "what I can do".
-  const RAIL_L = ["top", "stats", "rush"], RAIL_R = ["rush-bar", "ishop"];
-  // Where each block sat in the portrait stack, so narrowing puts it back in the right place
-  // rather than at the end of the body.
+  // Left is the run (stage, score, goal, touches); right is what you hold and what you can
+  // spend. The preview and the purse start life inside #top and #rush, so wide mode lifts
+  // them out and the narrow layout puts them back exactly where they were.
+  const RAIL_L = ["top", "stats", "rush"];
+  const RAIL_R = ["next-wrap", "rush-bar", "ishop"];
+  // Where each block sat in the portrait stack, so narrowing puts it back in the right place.
+  // The PARENT matters as much as the sibling: the preview lives inside #top and the purse
+  // inside #rush, and restoring either to <body> would leave the narrow layout rearranged.
   const railHome = new Map();
   let wideOn = null;
   function applyWide(on) {
-    if (on === wideOn) return;
-    wideOn = on;
-    document.body.classList.toggle("wide", on);
+    if (on !== wideOn) { wideOn = on; document.body.classList.toggle("wide", on); }
     for (const [rail, ids] of [["rail-l", RAIL_L], ["rail-r", RAIL_R]]) {
       const box = document.getElementById(rail);
+      const want = [];
       for (const id of ids) {
         const node = document.getElementById(id);
         if (!node) continue;
-        if (!railHome.has(id)) railHome.set(id, node.nextSibling);
-        // moving a node keeps its listeners and its state; nothing is rebuilt
-        if (on) box.appendChild(node);
-        else document.body.insertBefore(node, railHome.get(id));
+        if (!railHome.has(id)) railHome.set(id, { parent: node.parentNode, next: node.nextSibling });
+        want.push(node);
+      }
+      if (on) {
+        // Re-assert the order, not just the parent. placeChrome() re-parents the preview and
+        // the purse on every updateHUD, so a one-shot assignment silently drifted: the rail
+        // ended up tabs / purse / NEXT / items instead of NEXT first.
+        const have = [...box.children];
+        if (have.length !== want.length || want.some((n, i) => have[i] !== n))
+          for (const n of want) box.appendChild(n);   // moving a node keeps its listeners
+      } else {
+        for (const n of want) {
+          const h = railHome.get(n.id);
+          if (n.parentElement !== h.parent) h.parent.insertBefore(n, h.next);
+        }
       }
     }
   }
@@ -2997,6 +3081,7 @@
       traitPick: "특성 선택", doubleChip: "2배", myRelics: "내 유물", prep: "준비",
       best: "최고", stage: "스테이지", score: "점수", scoreBest: (a, b) => `점수 ${a} · 최고 ${b}`,
       touchChip: "👆 터치", spawnChip: "➕ 매턴", danger: "⚠️ 위험!",
+      nextLabel: "NEXT",
       spawnMenuTitle: "매턴 과일",
       spawnBase: "기본", spawnFromRelic: "유물·특성", spawnFromBuy: "구매", spawnTotal: "합계",
       spawnBuyBtn: n => `+1 늘리기 · \u{1FA99}${n}`,
@@ -3409,6 +3494,7 @@
       traitPick: "Pick a trait", doubleChip: "×2", myRelics: "My relics", prep: "",
       best: "Best", stage: "Stage", score: "Score", scoreBest: (a, b) => `Score ${a} · Best ${b}`,
       touchChip: "👆 Touches", spawnChip: "➕ Per turn", danger: "⚠️ Danger!",
+      nextLabel: "NEXT",
       spawnMenuTitle: "Fruit per turn",
       spawnBase: "Base", spawnFromRelic: "Relics & traits", spawnFromBuy: "Bought", spawnTotal: "Total",
       spawnBuyBtn: n => `Add +1 · \u{1FA99}${n}`,
@@ -3820,6 +3906,7 @@
       best: "ベスト", stage: "ステージ", score: "スコア",
       scoreBest: (a, b) => `スコア ${a} · ベスト ${b}`,
       touchChip: "👆 タッチ", spawnChip: "➕ 毎ターン", danger: "⚠️ 危険!",
+      nextLabel: "NEXT",
       spawnMenuTitle: "毎ターンのフルーツ",
       spawnBase: "基本", spawnFromRelic: "遺物・特性", spawnFromBuy: "購入", spawnTotal: "合計",
       spawnBuyBtn: n => `+1 増やす · \u{1FA99}${n}`,
@@ -4231,6 +4318,7 @@
       best: "最高", stage: "关卡", score: "分数",
       scoreBest: (a, b) => `分数 ${a} · 最高 ${b}`,
       touchChip: "👆 触摸", spawnChip: "➕ 每回合", danger: "⚠️ 危险!",
+      nextLabel: "NEXT",
       spawnMenuTitle: "每回合水果",
       spawnBase: "基础", spawnFromRelic: "遗物·特性", spawnFromBuy: "购买", spawnTotal: "合计",
       spawnBuyBtn: n => `增加 +1 · \u{1FA99}${n}`,
@@ -5574,15 +5662,16 @@
       if (timed && timed.parentElement !== bl) bl.appendChild(timed);
       if (purse.parentElement !== bm) bm.appendChild(purse);
       if (spawnChip && spawnChip.parentElement !== bm) bm.appendChild(spawnChip);
-      // the preview belongs beside 남은 터치, not over the score
-      if (prev.parentElement !== slot) slot.appendChild(prev);
+      // the preview belongs beside 남은 터치 -- unless the rail has taken it, which it does
+      // in wide mode, where it heads its own column
+      if (!wideOn && prev.parentElement !== slot) slot.appendChild(prev);
       // and the button goes back under the board, where the thumb is
       if (nextBtn.parentElement !== document.body) document.body.appendChild(nextBtn);
     } else {
       const stats = $sh("stats");
       if (stats && odds.parentElement !== stats) stats.insertBefore(odds, stats.firstChild);
       for (const id of ["relic-btn", "trait-btn"]) $sh(id).classList.add("hidden");
-      if (prev.parentElement !== top) top.appendChild(prev);
+      if (!wideOn && prev.parentElement !== top) top.appendChild(prev);
       const chips = document.querySelector("#rush .rb-chips"), rushEl = $sh("rush");
       const timed = $sh("rs-timed");
       if (chips && purse.parentElement !== chips) chips.insertBefore(purse, chips.firstChild);
@@ -5686,9 +5775,14 @@
     // The segmented fill/danger gauge is gone: sixteen coloured bars are the first thing a new
     // player sees and the last thing they can name. The board itself already shows how full it
     // is. The danger WARNING stays -- that one is a sentence, not a chart.
+    // Hysteresis, not one threshold. "Only on the way in" was already the rule, but the fill
+    // crosses 0.85 BOTH WAYS every single turn near the limit -- the pop drops it under, the
+    // spawn puts it back over -- so the warning re-armed and fired on every touch. It has to
+    // fall well clear of the line before it can sound again, and the label stops strobing with
+    // it. The warning is information the first time and noise every time after.
     const ratio = filledCount() / (ROWS * COLS);          // fill vs the whole board
-    const danger = ratio >= 0.85;
-    if (danger && !wasDanger) SFX.play("danger");   // only on the way in, not every frame
+    const danger = wasDanger ? ratio >= DANGER_OFF : ratio >= DANGER_ON;
+    if (danger && !wasDanger) SFX.play("danger");
     wasDanger = danger;
     document.getElementById("danger-label").classList.toggle("hidden", !danger || rush);
     document.getElementById("danger-label2").classList.toggle("hidden", !danger || !rush);
@@ -5846,6 +5940,14 @@
     // lowest. Bursts already fire staggered by distance, so a big cluster plays itself as a
     // rising arpeggio -- the bigger the cluster, the grander it sounds, for free.
     const PENTA = [0, 2, 4, 7, 9, 12, 16];
+    // Its own scale, NOT PENTA. PENTA spans 16 semitones, so wrapping it an octave up landed
+    // LOWER than the rung before -- measured: streak 6 was 1663Hz and streak 7 was 1320Hz, so
+    // the run audibly fell over just as it got going. Five rungs spanning exactly an octave
+    // wrap monotonically by construction.
+    const COMBO_SCALE = [0, 2, 4, 7, 9];
+    const COMBO_CHORD = 3;      // streak at which the accent gains a fifth
+    const COMBO_FLOURISH = 6;   // ...and a rising top note
+    const COMBO_OCT_CAP = 1;    // stop climbing before it shrieks (tops out ~2.2kHz)
     const FRUIT_NOTE = [0, 2, 3, 1, 4, 5, 6];   // fruit index -> rung, by FRUIT_POINTS order
     const hz = semi => 330 * Math.pow(2, semi / 12);
     // `step` is how far into the cluster's outward wave this pop is. Every cell used to fire
@@ -5938,9 +6040,19 @@
       },
       // an accent under the pops, not over them. A square wave at 0.16 carries far more
       // energy than a sine at 0.26, which is why this was the only thing audible.
+      // The accent under a streak. It climbed the scale and then STOPPED at PENTA's last
+      // rung -- streak 6 and streak 20 were the same note -- and at vol 0.07 / 0.07s it was
+      // buried under the pops anyway, which is why a long streak felt like nothing was
+      // happening. It keeps climbing in octaves now, and thickens as it goes: a fifth joins
+      // at COMBO_CHORD, a rising flourish at COMBO_FLOURISH. Louder AND different in kind.
       combo: n => {
-        const s = PENTA[Math.min(PENTA.length - 1, n)];
-        tone({ f: hz(s) * 2, dur: 0.07, vol: 0.07, type: "triangle" });
+        const f = comboHz(n);
+        const grow = Math.min(1, n / 8);
+        tone({ f, dur: 0.10 + grow * 0.05, vol: 0.11 + grow * 0.05, type: "triangle" });
+        if (n >= COMBO_CHORD)                       // a fifth above: the accent gains body
+          tone({ f: f * 1.5, dur: 0.10, vol: 0.05 + grow * 0.03, type: "sine", delay: 0.012 });
+        if (n >= COMBO_FLOURISH)                    // ...and a little rise on top of that
+          tone({ f: f * 2, dur: 0.09, vol: 0.05, type: "triangle", delay: 0.07 });
       },
       coin:  () => { tone({ f: 1050, dur: 0.05, vol: 0.08, type: "triangle" });
                      tone({ f: 1560, dur: 0.09, vol: 0.07, type: "triangle", delay: 0.05 }); },
@@ -6010,7 +6122,13 @@
       crackerStyle = k;
       try { LS.set("fs_brick", k); } catch (e) {}
     }
+    const comboHz = n => {
+      const step = Math.min(n, COMBO_SCALE.length * (COMBO_OCT_CAP + 1) - 1);   // then it holds
+      return hz(COMBO_SCALE[step % COMBO_SCALE.length]
+                + 12 * Math.floor(step / COMBO_SCALE.length)) * 2;
+    };
     return { play, unlock, resume, setMuted, setVolume, names: Object.keys(S), popHz,
+             comboHz, COMBO_CHORD, COMBO_FLOURISH, COMBO_OCT_CAP, PENTA_LEN: COMBO_SCALE.length,
              POP_STYLES, POP_KEYS, setPopStyle, get popStyle() { return popStyle; },
              CRACKER_STYLES, CRACKER_KEYS, setCrackerStyle, get crackerStyle() { return crackerStyle; },
              get voices() { return voices; }, get MAX_VOICES() { return MAX_VOICES; },
@@ -6097,15 +6215,25 @@
   const ITEM_PRICES = { bird: 10, lineH: 15, lineV: 15, basket: 22, bomb: 30, star: 70 };
   const BASKET_FRUIT = 12;     // how many fruit a 과일 바구니 drops
   let armedItem = null, wasDanger = false;
-  function canBuyItem(kind) {
+  const DANGER_ON = 0.85;    // the board is in trouble
+  const DANGER_OFF = 0.76;   // ...and this much has to clear before it can warn again
+  // Whether the item is BUYABLE AT ALL: money and room. Deliberately free of `busy`, because
+  // this is also what greys the button out -- and `busy` is true for the whole burst, so every
+  // single touch made all six buttons fade and snap back. The board cannot be tapped while
+  // busy anyway (the canvas handler returns early), so nothing was being protected by the
+  // flicker; it only told the player their items kept vanishing.
+  function itemAffordable(kind) {
     // the basket needs somewhere to put its fruit AND a cell to leave open: bought on the last
     // free cell it fills it with its own ball, so 22 coins bought the end of the run
     const need = kind === "basket" ? 2 : 1;
-    return running && !busy && !paused && ITEM_PRICES[kind] != null
+    return running && !paused && ITEM_PRICES[kind] != null
            && coins >= itemPrice(kind) && emptyCells().length >= need;
   }
+  // ...and whether it can be ACTED ON right now. The purchase only happens on placement, so
+  // arming mid-animation is harmless and the item is ready the moment the board is.
+  function canBuyItem(kind) { return itemAffordable(kind) && !busy; }
   function armItem(kind) {
-    armedItem = armedItem === kind ? null : (canBuyItem(kind) ? kind : null);
+    armedItem = armedItem === kind ? null : (itemAffordable(kind) ? kind : null);
     renderItemShop();
   }
   function placeBoughtItem(r, c) {
@@ -6151,7 +6279,8 @@
     paintItemIcons();
     for (const b of bar.querySelectorAll(".ib")) {
       const kind = b.dataset.item;
-      const affordable = canBuyItem(kind);
+      // greyed by money and room only -- not by the animation that is still playing
+      const affordable = itemAffordable(kind);
       b.disabled = !affordable && armedItem !== kind;
       b.classList.toggle("armed", armedItem === kind);
       // the label has to follow the discount, or the bar lies about what it will charge
@@ -7882,10 +8011,19 @@
         const over = lemonFree && mult > STREAK_CAP;
         b.textContent = (over ? "🍋 ×" : "🔥 ×") + mult.toFixed(1);
         b.classList.add("on");
-        b.animate([{transform:"scale(1.35)"},{transform:"scale(1)"}], {duration:180, easing:"ease-out"});
+        // The pop was the same 1.35 whether you were on your second success or your
+        // twentieth, so a long streak looked identical to a short one. It grows with the
+        // run, and past the multiplier's cap -- where the NUMBER stops moving and there was
+        // nothing left to feel -- the badge takes on heat of its own.
+        const heat = Math.min(1, streak / COMBO_HEAT_FULL);
+        b.classList.toggle("hot", streak >= COMBO_HEAT_FROM);
+        b.style.setProperty("--heat", heat.toFixed(2));
+        b.animate([{ transform: `scale(${(1.3 + heat * 0.45).toFixed(2)})` },
+                   { transform: "scale(1)" }],
+                  { duration: 180 + heat * 120, easing: "ease-out" });
       } else {
         b.textContent = "";
-        b.classList.remove("on");
+        b.classList.remove("on", "hot");
       }
     }
   }
@@ -8148,10 +8286,82 @@
     fruitSprite[i] = cv;
     drawNextPreview();   // refresh preview if the queued fruit just got its art
   }
-  function rebuildSprites() { for (let i = 0; i < FRUIT_SVG.length; i++) buildFruitSprite(i); }
+  function rebuildSprites() { for (let i = 0; i < FRUIT_SVG.length; i++) buildFruitSprite(i); boardArt = null; }
+
+  // One empty cell: a recess, not a flat fill -- shadowed top edge, lit bottom lip, soft
+  // floor. Takes the context so it can go into the board cache OR straight to the screen
+  // (the shockwave displaces cells, so that frame cannot use the cache).
+  function paintRecess(c2, x, y, size) {
+    const R = size * 0.22, lip = Math.max(1, size * 0.055);
+    const rr = (bx, by, ww, hh, r) => {
+      c2.beginPath();
+      c2.moveTo(bx + r, by);
+      c2.arcTo(bx + ww, by, bx + ww, by + hh, r);
+      c2.arcTo(bx + ww, by + hh, bx, by + hh, r);
+      c2.arcTo(bx, by + hh, bx, by, r);
+      c2.arcTo(bx, by, bx + ww, by, r);
+      c2.closePath();
+    };
+    c2.save();
+    c2.translate(x, y);
+    c2.fillStyle = PLATE.cellHi; rr(0, 0, size, size, R); c2.fill();      // the lit lower lip
+    const gr = c2.createLinearGradient(0, 0, 0, size);                     // the sunk floor
+    gr.addColorStop(0, PLATE.cellLo);
+    gr.addColorStop(0.55, PLATE.cell);
+    gr.addColorStop(1, PLATE.cell);
+    c2.fillStyle = gr; rr(0, 0, size, size - lip, R); c2.fill();
+    rr(0, 0, size, size - lip, R); c2.clip();                              // the wall
+    const sh = c2.createLinearGradient(0, 0, 0, size * 0.42);
+    sh.addColorStop(0, "rgba(0,0,0,0.30)");
+    sh.addColorStop(1, "rgba(0,0,0,0)");
+    c2.fillStyle = sh; c2.fillRect(0, 0, size, size * 0.42);
+    c2.restore();
+  }
+
+  function buildBoardArt() {
+    if (!(boardPx > 0 && boardH > 0 && cell > 0)) return;   // before the first layout
+    const cv = document.createElement("canvas");
+    cv.width = Math.max(1, Math.round(boardPx * dpr));
+    cv.height = Math.max(1, Math.round(boardH * dpr));
+    const c2 = cv.getContext("2d");
+    c2.scale(dpr, dpr);
+    const rr = (bx, by, ww, hh, r) => {
+      c2.beginPath();
+      c2.moveTo(bx + r, by);
+      c2.arcTo(bx + ww, by, bx + ww, by + hh, r);
+      c2.arcTo(bx + ww, by + hh, bx, by + hh, r);
+      c2.arcTo(bx, by + hh, bx, by, r);
+      c2.arcTo(bx, by, bx + ww, by, r);
+      c2.closePath();
+    };
+    c2.fillStyle = PLATE.bg; rr(0, 0, boardPx, boardH, 18); c2.fill();
+    // a vignette, so the plate has a rim instead of being a flat rectangle
+    const vg = c2.createRadialGradient(boardPx / 2, boardH / 2, boardPx * 0.28,
+                                       boardPx / 2, boardH / 2, Math.max(boardPx, boardH) * 0.72);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, PLATE.edge);
+    c2.save(); c2.globalAlpha = 0.55; c2.fillStyle = vg;
+    rr(0, 0, boardPx, boardH, 18); c2.fill(); c2.restore();
+    const g = boardPx * 0.006;
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        paintRecess(c2, pad + c * cell + g, pad + r * cell + g, cell - g * 2);
+    boardArt = cv;
+  }
 
   // draw a fruit filling a box of side S — uses cached SVG sprite if present, else procedural
-  function fruitVisual(kind, cx, cy, S) {
+  function fruitVisual(kind, cx, cy, S, grounded = false) {
+    // A contact shadow is the cheapest way to stop a sprite looking pasted onto the plate:
+    // without it every fruit floats, which is half of why the board read as flat.
+    if (grounded) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + S * 0.34, S * 0.30, S * 0.10, 0, 0, PI2);
+      ctx.fill();
+      ctx.restore();
+    }
     const sp = fruitSprite[kind];
     if (sp) ctx.drawImage(sp, cx - S/2, cy - S/2, S, S);
     else drawFruit(kind, cx, cy, S * 0.34);   // procedural draws ~0.34*box radius
@@ -8291,16 +8501,20 @@
     else shake = 0;
     ctx.save(); ctx.translate(ox, oy);
 
-    // board bg
-    ctx.fillStyle = PLATE.bg;
-    roundRect(0, 0, boardPx, boardH, 18); ctx.fill();
+    // The plate, the vignette and every recess in ONE blit, always. The shockwave shoves
+    // what is IN the cells rather than the holes themselves -- an empty socket in the plate
+    // has no business sliding around, and redrawing 64 gradient-filled recesses per frame to
+    // move them was the expensive path this cache exists to avoid.
+    if (!boardArt) buildBoardArt();
+    if (boardArt) ctx.drawImage(boardArt, 0, 0, boardPx, boardH);
+    else { ctx.fillStyle = PLATE.bg; roundRect(0, 0, boardPx, boardH, 18); ctx.fill(); }
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         let x = pad + c * cell, y = pad + r * cell;
         const g = boardPx * 0.006;
-        // tier 2 shockwave: the ring shoves each cell outward as it passes, so the board
-        // itself moves instead of just being a backdrop for particles
+        // tier 2 shockwave: the ring shoves each cell's CONTENTS outward as it passes, so
+        // the board reacts instead of being a backdrop for particles
         if (shock) {
           const dx = x + cell / 2 - shock.cx, dy = y + cell / 2 - shock.cy;
           const dist = Math.hypot(dx, dy) || 1;
@@ -8312,9 +8526,7 @@
             x += (dx / dist) * push; y += (dy / dist) * push;
           }
         }
-        // empty cell
-        ctx.fillStyle = PLATE.cell;
-        roundRect(x + g, y + g, cell - g*2, cell - g*2, cell*0.22); ctx.fill();
+        // the recess itself is already in the blit above
 
         // juice on the plate, clipped to the cell so it reads as a stain and not a blob
         for (let si = 0; si < splats.length; si++) {
@@ -8472,7 +8684,7 @@
             const rot = 0.08 * Math.sin(ph * 0.9 + 1);        // little wobble
             ctx.save();
             ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(sc, sc); ctx.translate(-cx, -cy);
-            fruitVisual(v, cx, cy, cell * apScale);
+            fruitVisual(v, cx, cy, cell * apScale, true);
             ctx.strokeStyle = "#6e4722"; ctx.lineWidth = cell*0.05; ctx.lineCap = "round";
             const fx = cx + rad*0.2, fy = cy - rad*0.78;
             ctx.beginPath(); ctx.moveTo(fx, fy);
@@ -8498,7 +8710,7 @@
             continue;
           }
           ctx.save();
-          fruitVisual(v, cx, cy, cell * apScale);    // SVG sprite if available, else procedural
+          fruitVisual(v, cx, cy, cell * apScale, true);   // SVG sprite if available, else procedural
           if (sp === "lineH" || sp === "lineV" || sp === "lineX") {
             // white bars showing the clear direction
             ctx.strokeStyle = "#fff"; ctx.lineWidth = cell*0.07; ctx.lineCap = "round";
@@ -9697,10 +9909,15 @@
       set revivedThisRun(v) { revivedThisRun = v; },
       renderSettings, openTraits, openInfo, openSettings, closeSettings, renderMenuSettings,
       THEMES, setTheme, get theme() { return theme; }, PLATE,
+      readPlate, mixHex, buildBoardArt, get boardArt() { return boardArt; },
+      get dpr() { return dpr; }, get cell() { return cell; }, get boardPx() { return boardPx; },
+      get boardH() { return boardH; },
+      get ctx() { return ctx; },
       renderStats,
       mfxStart, mfxStop, mfxFrame, MFX_STEP_MS, MFX_MAX_K, get mfxOn() { return mfxOn; },
       frameK, FRAME_STEP_MS, FRAME_MAX_K, FX_SPEED,
       clusterTier, clusterPayoff, TIER_SPLAT, TIER_SHOCK, TIER_WASH, HITSTOP_MS,
+      COMBO_HEAT_FROM, COMBO_HEAT_FULL, updateStreakBadge,
       POP_STAGGER_MS,
       get splats() { return splats; }, get shock() { return shock; },
       get wash() { return wash; }, get hitstop() { return hitstop; },
