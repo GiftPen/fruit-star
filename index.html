@@ -196,6 +196,13 @@
     body.wide .rail #ishop .ib { height: 40px; }
     body.wide .rail #rush-bar { gap: 4px; }
   }
+  /* Tell the browser this page handles its own colour scheme. Without it Chrome's Auto Dark
+     Theme decides we do not support dark mode and rewrites the palette itself: with the OS in
+     dark mode the 과일 노점 theme came out olive instead of cream and the goal line was almost
+     unreadable. Declaring support for both schemes opts the page out of that rewrite -- the
+     four themes ARE the colour scheme, and which one is active is the player's choice, not the
+     operating system's. */
+  :root { color-scheme: light dark; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0; height: 100%;
@@ -1498,7 +1505,8 @@
   // out of the stylesheet whenever the theme changes and held here. Seeded with the dark
   // theme's values so the first frame is right even if it lands before applyTheme().
   const PLATE = { bg: "#171a26", cell: "#262a3d",
-                  cellHi: "#3a3f55", cellLo: "#1b1e2b", edge: "#0f111a" };
+                  cellHi: "#3a3f55", cellLo: "#1b1e2b", edge: "#0f111a",
+                  wall: 0.15, drop: 0.16 };
   // The whole empty board -- plate, vignette and every cell recess -- as ONE image. A
   // per-cell version of this blitted 64+ times a frame and was catastrophically slower than
   // the flat fill it replaced under software rasterisation: the item suite went from 59s to
@@ -1507,6 +1515,12 @@
   // Depth has to be DERIVED from the two plate colours, never written down: the four themes
   // are a dark navy, brown wood, teal and blue-grey, and a hardcoded highlight that reads as
   // light on navy reads as dirt on wood.
+  const lumOf = hex => {
+    const h = hex.replace("#", "");
+    const n = h.length === 3 ? h.split("").map(x => x + x).join("") : h;
+    return (parseInt(n.slice(0, 2), 16) * 0.299 + parseInt(n.slice(2, 4), 16) * 0.587
+            + parseInt(n.slice(4, 6), 16) * 0.114) / 255;
+  };
   function mixHex(hex, towards, amt) {
     const h = hex.replace("#", "");
     const n = h.length === 3 ? h.split("").map(x => x + x).join("") : h;
@@ -1520,9 +1534,17 @@
     const b = cs.getPropertyValue("--board").trim(), c = cs.getPropertyValue("--board-cell").trim();
     if (b) PLATE.bg = b;
     if (c) PLATE.cell = c;
-    PLATE.cellHi = mixHex(PLATE.cell, "hi", 0.16);   // lit lower edge of the recess
-    PLATE.cellLo = mixHex(PLATE.cell, "lo", 0.30);   // shadowed upper edge
-    PLATE.edge  = mixHex(PLATE.bg, "lo", 0.35);      // vignette toward the plate's rim
+    // How much depth a plate can take depends on how dark it already is. A fixed amount of
+    // shadow is free on wood and murders the dark theme: black on near-black reads as dirt,
+    // not as a recess. So the darker the plate, the more the depth comes from HIGHLIGHT and
+    // the less from shade -- and the vignette nearly disappears, because there is no headroom
+    // under an almost-black plate to darken into.
+    const lum = lumOf(PLATE.cell);                   // 0 (black) .. 1 (white)
+    PLATE.cellHi = mixHex(PLATE.cell, "hi", 0.30 - lum * 0.28);   // lit lower edge
+    PLATE.cellLo = mixHex(PLATE.cell, "lo", 0.12 + lum * 0.45);   // shadowed upper edge
+    PLATE.edge   = mixHex(PLATE.bg, "lo", 0.08 + lumOf(PLATE.bg) * 0.55);   // vignette
+    PLATE.wall = 0.08 + lum * 0.40;                  // alpha of the recess's inner wall
+    PLATE.drop = 0.10 + lum * 0.34;                  // alpha of a fruit's contact shadow
     boardArt = null;                                 // the cached board must be redrawn
   }
   const COMBO_HEAT_FROM = 4;   // streak at which the badge starts to glow
@@ -8379,7 +8401,7 @@
     c2.fillStyle = gr; rr(0, 0, size, size - lip, R); c2.fill();
     rr(0, 0, size, size - lip, R); c2.clip();                              // the wall
     const sh = c2.createLinearGradient(0, 0, 0, size * 0.42);
-    sh.addColorStop(0, "rgba(0,0,0,0.30)");
+    sh.addColorStop(0, `rgba(0,0,0,${PLATE.wall})`);
     sh.addColorStop(1, "rgba(0,0,0,0)");
     c2.fillStyle = sh; c2.fillRect(0, 0, size, size * 0.42);
     c2.restore();
@@ -8422,7 +8444,7 @@
     // without it every fruit floats, which is half of why the board read as flat.
     if (grounded) {
       ctx.save();
-      ctx.globalAlpha = 0.28;
+      ctx.globalAlpha = PLATE.drop;
       ctx.fillStyle = "#000";
       ctx.beginPath();
       ctx.ellipse(cx, cy + S * 0.34, S * 0.30, S * 0.10, 0, 0, PI2);
@@ -9980,6 +10002,7 @@
       get dpr() { return dpr; }, get cell() { return cell; }, get boardPx() { return boardPx; },
       get boardH() { return boardH; },
       get ctx() { return ctx; },
+      drawNextPreview,
       renderStats,
       mfxStart, mfxStop, mfxFrame, MFX_STEP_MS, MFX_MAX_K, get mfxOn() { return mfxOn; },
       frameK, FRAME_STEP_MS, FRAME_MAX_K, FX_SPEED,
