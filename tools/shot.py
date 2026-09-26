@@ -19,6 +19,12 @@ SCREENS = {
   # full-screen overlay, so only a whole-page shot can show them
   # a 10+ clear, caught with the slabs in the air. The animation clock does not run under
   # virtual time, so it is driven by hand to the moment worth looking at.
+  # a nearly-full board: the plate takes a red rim instead of a label in the chip row
+  'danger':("D.getElementById('btn-arcade').click();"
+            " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){"
+            "   F.grid[r][c]=(r*F.COLS+c)%4; F.special[r][c]=null; F.appear[r][c]=0; }"
+            " F.grid[7][7]=-1; F.grid[7][6]=-1; F.touchCount=128; F.coins=1450;"
+            " F.frame=8; F.updateHUD(); F.dirty=true; F.draw();"),
   'slab':  ("D.getElementById('btn-challenge').click();"
             " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
             " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"

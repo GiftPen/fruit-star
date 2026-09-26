@@ -324,8 +324,13 @@
   .chip.lvl .lvmax { color: var(--gold); margin-left: 4px; font-size: 10px; letter-spacing: 1px; }
   .chip.lvl .lvmax.hidden { display: none; }
   /* a chip that is also a button: keep it looking exactly like its neighbours */
+  /* A chip that is also a button. The global `button` rule gives every button a top margin
+     and a green brand shadow, and both leak into any chip built on one: the ➕ chip sat 4px
+     below its neighbours with a green glow under it. Fixed three times in three places before
+     this -- the purse in the rush rail, the arcade chip row, and here -- so it is cut off at
+     the source now. */
   .chip-btn { border: 0; font-family: inherit; cursor: pointer; display: inline-flex;
-              align-items: center; gap: 4px; }
+              align-items: center; gap: 4px; margin: 0; box-shadow: none; }
   .chip-btn.on { background: var(--chip); box-shadow: 0 0 0 2px var(--gold) inset; }
   /* z above the HUD and the board, below the shop/pause overlays */
   #spawn-menu {
@@ -471,17 +476,6 @@
                       100% { transform: scale(1); } }
   #rb-touch-cell.warn .rb-val, #rb-touch-cell.warn .rb-lab { color: #ffab3d; }
   #rb-touch-cell.low  .rb-val, #rb-touch-cell.low  .rb-lab { color: #ff5a5f; }
-  /* same reason as #danger-label: in the chip row it squeezed the goal cell by 21px and
-     shoved 남은 터치 with it, once per touch */
-  #danger-label2 { position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    font-size: 12px; font-weight: 800; color: #ff5a5f; pointer-events: none; }
-  #danger-label2.hidden { display: none; }
-  /* Out of flow on purpose. In the row it shifted all four chips 11px left the moment it
-     appeared, and the fill crosses the danger line every single turn -- so the whole HUD
-     twitched once per touch. Pinned, it cannot move anything. */
-  #danger-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
-    font-size: 12px; font-weight: 800; color: #ff5a5f; pointer-events: none; }
-  #danger-label.hidden { display: none; }
   /* segmented board-fill / danger gauge (merges 남은블록 + 위기) */
   /* Hold-to-explain. A phone has no hover, so the only way to ask "what is this" without
      adding a second button per icon is to press and wait. */
@@ -1283,7 +1277,6 @@
     <span class="chip" id="st-touch-chip"><span data-i18n="touchChip">👆 터치</span> <b id="st-touch">0</b></span>
     <button class="chip chip-btn" id="st-spawn-chip"><span data-i18n="spawnChip">➕ 매턴</span> <b id="st-spawn">1</b></button>
     <span class="chip coin" id="st-coin"><i class="cn"></i> <b id="st-coin-v">0</b></span>
-    <span id="danger-label" class="hidden" data-i18n="danger">⚠️ 위험!</span>
   </div>
   <div id="rush" class="hidden">
     <div class="rb-row">
@@ -1294,7 +1287,6 @@
         <span class="chip coin" id="rs-coin"><i class="cn"></i> <b id="rs-coin-v">0</b></span>
         <span id="rs-chrome"></span>
         <button class="chip chip-btn" id="rs-spawn-chip">➕ <b id="rs-spawn">1</b></button>
-        <span id="danger-label2" class="hidden">⚠️</span>
       </div>
     </div>
     <div id="rs-timed"></div>
@@ -3212,7 +3204,7 @@
       tipItem_star: (p, sc) => `<b>별</b> · ${p}코인<br>놓고 탭하면 같은 색을 별자리로 이어 정리하고 코인을 떨굽니다. 발동 시 +${sc}점.`, tabRelics: "유물", tabTraits: "특성",
       traitPick: "특성 선택", doubleChip: "2배", myRelics: "내 유물", prep: "준비",
       best: "최고", stage: "스테이지", score: "점수", scoreBest: (a, b) => `점수 ${a} · 최고 ${b}`,
-      touchChip: "👆 터치", spawnChip: "➕ 매턴", danger: "⚠️ 위험!",
+      touchChip: "👆 터치", spawnChip: "➕ 매턴",
       nextLabel: "NEXT",
       spawnMenuTitle: "매턴 과일",
       spawnBase: "기본", spawnFromRelic: "유물·특성", spawnFromBuy: "구매", spawnTotal: "합계",
@@ -3625,7 +3617,7 @@
       tipItem_star: (p, sc) => `<b>Star</b> · ${p} coins<br>Place it and tap to link one colour into a constellation and drop coins. +${sc} when it fires.`, tabRelics: "Relics", tabTraits: "Traits",
       traitPick: "Pick a trait", doubleChip: "×2", myRelics: "My relics", prep: "",
       best: "Best", stage: "Stage", score: "Score", scoreBest: (a, b) => `Score ${a} · Best ${b}`,
-      touchChip: "👆 Touches", spawnChip: "➕ Per turn", danger: "⚠️ Danger!",
+      touchChip: "👆 Touches", spawnChip: "➕ Per turn",
       nextLabel: "NEXT",
       spawnMenuTitle: "Fruit per turn",
       spawnBase: "Base", spawnFromRelic: "Relics & traits", spawnFromBuy: "Bought", spawnTotal: "Total",
@@ -4037,7 +4029,7 @@
       traitPick: "特性を選ぶ", doubleChip: "×2", myRelics: "所持レリック", prep: "準備",
       best: "ベスト", stage: "ステージ", score: "スコア",
       scoreBest: (a, b) => `スコア ${a} · ベスト ${b}`,
-      touchChip: "👆 タッチ", spawnChip: "➕ 毎ターン", danger: "⚠️ 危険!",
+      touchChip: "👆 タッチ", spawnChip: "➕ 毎ターン",
       nextLabel: "NEXT",
       spawnMenuTitle: "毎ターンのフルーツ",
       spawnBase: "基本", spawnFromRelic: "遺物・特性", spawnFromBuy: "購入", spawnTotal: "合計",
@@ -4449,7 +4441,7 @@
       traitPick: "选择特性", doubleChip: "×2", myRelics: "我的遗物", prep: "准备",
       best: "最高", stage: "关卡", score: "分数",
       scoreBest: (a, b) => `分数 ${a} · 最高 ${b}`,
-      touchChip: "👆 触摸", spawnChip: "➕ 每回合", danger: "⚠️ 危险!",
+      touchChip: "👆 触摸", spawnChip: "➕ 每回合",
       nextLabel: "NEXT",
       spawnMenuTitle: "每回合水果",
       spawnBase: "基础", spawnFromRelic: "遗物·特性", spawnFromBuy: "购买", spawnTotal: "合计",
@@ -5916,8 +5908,10 @@
     const danger = wasDanger ? ratio >= DANGER_OFF : ratio >= DANGER_ON;
     if (danger && !wasDanger) SFX.play("danger");
     wasDanger = danger;
-    document.getElementById("danger-label").classList.toggle("hidden", !danger || rush);
-    document.getElementById("danger-label2").classList.toggle("hidden", !danger || !rush);
+    // No label any more. A word pinned into the chip row overlapped the coin chip as soon as
+    // the touch count reached three digits, and it was answering a question the board can
+    // answer itself: the plate takes a red rim that breathes while the board is nearly full.
+    // Nothing to lay out, nothing to collide with, and it is where the player is looking.
   }
 
   // ---- input ----
@@ -8759,7 +8753,7 @@
     let live = particles.length || birds.length || flares.length || waves.length || links.length
              || floats.length || coinsShown !== coins
              || shake > 0.3 || flash > 0.01
-             || splats.length || shock || wash || hitstop > 0;
+             || splats.length || shock || wash || hitstop > 0 || wasDanger;
     if (!live) for (let r = 0; r < ROWS && !live; r++) for (let c = 0; c < COLS; c++)
       if (glow[r][c] || appear[r][c] > 0 || special[r][c] === "bomb") { live = true; break; }
     if (!dirty && !live) { requestAnimationFrame(draw); return; }
@@ -8796,6 +8790,20 @@
     if (!boardArt) buildBoardArt();
     if (boardArt) ctx.drawImage(boardArt, 0, 0, boardPx, boardH);
     else { ctx.fillStyle = PLATE.bg; roundRect(0, 0, boardPx, boardH, 18); ctx.fill(); }
+
+    // Nearly full: the plate itself breathes red. This replaces a "⚠️ 위험!" chip that had to
+    // be squeezed into a row it kept colliding with.
+    if (wasDanger) {
+      const lw = Math.max(2.5, cell * 0.10);
+      const pulse = 0.5 + 0.5 * Math.sin(frame * 0.10);
+      ctx.save();
+      ctx.globalAlpha = 0.30 + pulse * 0.40;
+      ctx.strokeStyle = "#ff5a5f";
+      ctx.lineWidth = lw;
+      roundRect(lw / 2, lw / 2, boardPx - lw, boardH - lw, 18);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -10255,6 +10263,7 @@
       // draw() early-returns when nothing is dirty and nothing is animating, so a test that
       // sets up a board by hand has no way to force a frame without this
       get dirty() { return dirty; }, set dirty(v) { dirty = v; },
+      get wasDanger() { return wasDanger; }, set wasDanger(v) { wasDanger = v; },
       get fruitSprite() { return fruitSprite; },
       get ctx() { return ctx; },
       drawNextPreview,
