@@ -15,6 +15,18 @@ SCREENS = {
   'arcade':"D.getElementById('btn-arcade').click();",
   # one fruit of each colour on the diagonal, and the same board empty, so the two can be
   # diffed to get each fruit's real ink on screen
+  # a 9-cluster popped, caught mid-flight: the shards that leave the board live on the
+  # full-screen overlay, so only a whole-page shot can show them
+  'fly':   ("D.getElementById('btn-challenge').click();"
+            " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
+            " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"
+            " for(let r=2;r<=4;r++)for(let c=2;c<=4;c++) F.grid[r][c]=0;"
+            " F.grid[3][3]=-1; F.nextColor=0; F.dirty=true; F.draw();"
+            " const cv=D.getElementById('game'), bb=cv.getBoundingClientRect();"
+            " const px=bb.left+3.5*bb.width/F.COLS, py=bb.top+3.5*bb.height/F.ROWS;"
+            " cv.dispatchEvent(new PointerEvent('pointerdown',{clientX:px,clientY:py,bubbles:true}));"
+            " cv.dispatchEvent(new PointerEvent('pointerup',{clientX:px,clientY:py,bubbles:true}));"
+            " setTimeout(()=>{F.dirty=true;F.draw();},170);"),
   'diag':  ("D.getElementById('btn-challenge').click();"
             " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
             " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"

@@ -311,6 +311,8 @@
      is flying to lives. Under the shop/pause overlays (z 11+), over the HUD. */
   #coinfx { position: fixed; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
   #coinfx .cn { position: absolute; will-change: transform, opacity; }
+  #coinfx .fly-shard { position: absolute; background: center/contain no-repeat;
+    will-change: transform, opacity; }
   .cn::before { content: "\1FA99"; }
   body.coin-art .cn { width: 1.15em; height: 1.15em; vertical-align: -.22em;
                       background: var(--coin-url) center/contain no-repeat; }
@@ -1523,7 +1525,7 @@
   //   2  hitstop + shockwave — time stops and the neighbouring cells are physically shoved
   //   3  colour wash — the whole screen takes the fruit's colour for a moment
   // The outward pop wave (POP_STAGGER_MS) already existed; this rides on it.
-  const TIER_SPLAT = 5, TIER_SHOCK = 7, TIER_WASH = 10;
+  const TIER_SPLAT = 3, TIER_SHOCK = 7, TIER_WASH = 10;
   const clusterTier = n => (n >= TIER_WASH ? 3 : n >= TIER_SHOCK ? 2 : n >= TIER_SPLAT ? 1 : 0);
   const HITSTOP_MS = 70;       // long enough to feel, short enough not to read as a stutter
   const POP_STAGGER_MS = 38;   // delay per unit of DISTANCE from the blast (not per cell):
@@ -2204,6 +2206,8 @@
   const erodeOn = () => mode === "rush" && roundNow() >= ERODE_FROM_ROUND;
   const isLocked = (r, c) => !!(eroded && eroded[r] && eroded[r][c]);
   let ghost;                   // ghost[r][c] = colorIdx of a cell already cleared in logic
+  let ghostAt;                 // ...and when it is due to pop, so it can wind up first
+  const SQUASH_MS = 110;       // how long before its turn a doomed fruit starts to brace
                                // but not yet visually popped -- keeps the fruit on screen
                                // until ITS staggered burst fires, so a blast reads as fruit
                                // vanishing outward instead of the whole area blinking out
@@ -2373,7 +2377,7 @@
     ROWS = 8;                              // Star Rush grows this mid-run; runs start at 8
     grid = layer(-1); special = layer(null); hp = layer(0);
     coinCell = layer(0); sprouted = layer(0); eroded = layer(0); erodeStep = 0;
-    glow = layer(null); appear = layer(0); ghost = layer(null);   // display-only layers
+    glow = layer(null); appear = layer(0); ghost = layer(null); ghostAt = layer(0);   // display-only layers
     nextColor = null; nextColor2 = null;   // null queue -> pickNext refills both slots
     score = 0; streak = 0; touchCount = 0;
     stage = 1; stageScore = 0; touchesLeft = RUSH_TOUCHES;
@@ -2430,7 +2434,7 @@
     crackerScore = o.crackerScore || CRACKER_SCORE;
     spawnBought = o.spawnBought || 0;            // absent in an older save: nothing bought yet
     coinsShown = coins; clearCoinFly();
-    glow = layer(null); appear = layer(0); ghost = layer(null);
+    glow = layer(null); appear = layer(0); ghost = layer(null); ghostAt = layer(0);
     layout(); dirty = true;
     return true;
   }
@@ -6658,6 +6662,9 @@
         grid[r][c] = -1; special[r][c] = null;   // logic clears immediately (game state stays correct)
         if (cellColor === CRACKER) blasted.push([r, c]);   // swallowed whole -- still a break
         ghost[r][c] = vis;                       // ...but it stays on screen until its burst
+        // ...and it needs to know WHEN, so it can wind up before it goes. A fruit that simply
+        // vanishes has no moment of impact; the swell just before the break is half of it.
+        ghostAt[r][c] = ringAt + (it.d || 0) * POP_STAGGER_MS;
         const carried = takeCoin(r, c);
         if (carried) coined++;
         popped++;
@@ -6676,7 +6683,7 @@
         const popAt = (it.d || 0) * POP_STAGGER_MS;
         if (popAt > maxD) maxD = popAt;
         setTimeout(() => {
-          ghost[r][c] = null;                    // this cell's turn: fruit goes, particles fly
+          ghost[r][c] = null; ghostAt[r][c] = 0;  // this cell's turn: fruit goes, particles fly
           // a cracker bursts grey wherever it dies -- vis would paint it the blast's fruit colour
           // a cracker or a seed bursts grey wherever it dies -- vis would paint it the
           // blast's fruit colour
@@ -6715,6 +6722,7 @@
           flashBox(r, c, bombRadius(), cellColor);
           const [fx, fy] = cellCenter(r, c);
           flares.push({ cx: fx, cy: fy, kind: cellColor < 0 ? it.color : cellColor, maxR: cell * 1.7, t: 0 });  // grow to ~3x3
+          flyShards(r, c, cellColor < 0 ? it.color : cellColor, 8);
           addShake(11);
           for (const [nr, nc, d] of budsAround(r, c, bombRadius(), visited))
             next.push({ r: nr, c: nc, d, mode: "blast", color: cellColor });
@@ -7963,6 +7971,53 @@
   // Slow enough to read. The canvas version stepped t by a fixed amount per FRAME, so it
   // was both ~0.6s and faster on a 120Hz phone; this is wall-clock and the same everywhere.
   const COIN_FLY_MS = 900, COIN_STAGGER_MS = 80, COIN_FLY_MAX = 40;
+
+  // ---- pieces that leave the board ----
+  // The canvas IS the board, so a shard drawn on it can never cross the rim: the biggest
+  // clears looked the same size as the small ones. These few ride the full-screen overlay the
+  // coins already use, so they fly past the edge and off the screen. Reserved for a bomb or a
+  // seven-plus clear -- if every pop threw them it would stop meaning anything.
+  const FLY_SHARD_MS = 950, FLY_SHARD_MAX = 14;
+  const shardURL = [];                       // dataURL per fruit per wedge, cut once
+  function shardImageURL(kind, k) {
+    const row = shardURL[kind] || (shardURL[kind] = []);
+    if (row[k]) return row[k];
+    const shards = fruitShards[kind];
+    if (!shards || !shards[k]) return null;
+    try { return (row[k] = shards[k].toDataURL()); } catch (e) { return null; }
+  }
+  function flyShards(r, c, kind, n) {
+    const shards = fruitShards[kind];
+    const fx = document.getElementById("coinfx");
+    if (!shards || !fx || cell <= 0) return;
+    const b = canvas.getBoundingClientRect();
+    const sx = b.left + pad + c * cell + cell / 2;
+    const sy = b.top + pad + r * cell + cell / 2;
+    const sz = cell * 0.9;
+    for (let i = 0; i < n; i++) {
+      if (fx.childElementCount >= COIN_FLY_MAX + FLY_SHARD_MAX) break;
+      const url = shardImageURL(kind, i % shards.length);
+      if (!url) break;
+      const el = document.createElement("i");
+      el.className = "fly-shard";
+      el.style.cssText = `width:${sz}px;height:${sz}px;left:${sx - sz / 2}px;` +
+                         `top:${sy - sz / 2}px;background-image:url("${url}")`;
+      // thrown outward and up, then carried down and out past the rim
+      const a = (i / n) * PI2 + (fxRnd() - 0.5) * 0.6;
+      const dist = cell * (4.5 + fxRnd() * 4.5);
+      const dx = Math.cos(a) * dist, dy = Math.sin(a) * dist - cell * 2.2;
+      const spin = (fxRnd() - 0.5) * 900;
+      fx.appendChild(el);                       // attach first: a detached node does not animate
+      const an = el.animate([
+        { transform: "translate(0,0) rotate(0deg) scale(1)", opacity: 1 },
+        { transform: `translate(${dx * 0.55}px, ${dy * 0.55 + cell * 1.2}px) ` +
+                     `rotate(${spin * 0.55}deg) scale(.92)`, opacity: 1, offset: 0.55 },
+        { transform: `translate(${dx}px, ${dy + cell * 5.5}px) rotate(${spin}deg) scale(.7)`,
+          opacity: 0 },
+      ], { duration: FLY_SHARD_MS, easing: "cubic-bezier(.15,.7,.5,1)", fill: "forwards" });
+      an.onfinish = () => el.remove();
+    }
+  }
   function flyCoins(n, r, c) {
     if (!(n > 0) || r == null) return;
     SFX.play("coin");
@@ -8074,6 +8129,8 @@
       if (rr < 0 || rr >= ROWS || cc < 0 || cc >= COLS) continue;
       splats.push({ r: rr, c: cc, t: 1, color: col,
                     rad: 0.22 + fxRnd() * 0.20, dx: fxRnd() - 0.5, dy: fxRnd() - 0.5,
+                    s1x: (fxRnd() - 0.5) * 2.2, s1y: (fxRnd() - 0.5) * 2.2,
+                    s2x: (fxRnd() - 0.5) * 2.6, s2y: (fxRnd() - 0.5) * 2.6,
                     wait: Math.hypot(rr - r0, cc - c0) * POP_STAGGER_MS });
     }
     if (tier < 2) { dirty = true; return; }
@@ -8081,6 +8138,7 @@
     // 2 — time stops, and the cells get shoved away from the epicentre
     hitstop = Math.max(hitstop, HITSTOP_MS);
     shock = { cx, cy, t: 0, color: col, power: Math.min(1, cleared / 16) };
+    flyShards(r0, c0, color, Math.min(10, 4 + ((cleared - TIER_SHOCK) | 0)));
 
     if (tier < 3) { dirty = true; return; }
 
@@ -8695,11 +8753,14 @@
     for (let i = splats.length - 1; i >= 0; i--) {
       const sp2 = splats[i];
       if (sp2.wait > 0) { sp2.wait -= ms; continue; }
-      sp2.t -= 0.016 * k;
+      sp2.t -= 0.0075 * k;   // lingers: a mark you leave, not a flicker
       if (sp2.t <= 0) splats.splice(i, 1);
     }
     if (shock) { shock.t += 0.055 * k; if (shock.t >= 1) shock = null; }
     if (wash) { wash.t -= 0.055 * k; if (wash.t <= 0) wash = null; }
+
+    // one clock reading for the whole frame: the wind-up before each pop is timed against it
+    const nowMs = performance.now();
 
     // screen shake
     let ox = 0, oy = 0;
@@ -8734,17 +8795,29 @@
         }
         // the recess itself is already in the blit above
 
-        // juice on the plate, clipped to the cell so it reads as a stain and not a blob
+        // Juice left on the plate, clipped to the cell so it reads as a stain and not a blob.
+        // At 30% alpha over a single circle this was invisible -- reported as "얼룩 묻는거 티도
+        // 안나고" and it was right. A stain is a main blob with a couple of thrown-off drops,
+        // and it has to be dark enough to see against the board.
         for (let si = 0; si < splats.length; si++) {
           const sp2 = splats[si];
           if (sp2.r !== r || sp2.c !== c || sp2.wait > 0) continue;
           ctx.save();
           roundRect(x + g, y + g, cell - g*2, cell - g*2, cell*0.22); ctx.clip();
-          ctx.globalAlpha = Math.max(0, sp2.t) * 0.30;
+          // Flattened, not round. At full alpha a disc this size reads as a piece of fruit
+          // sitting in the cell, and the board has to stay readable above all else.
+          ctx.globalAlpha = Math.max(0, Math.min(1, sp2.t * 1.4)) * 0.38;
           ctx.fillStyle = sp2.color;
+          const bx = x + cell * (0.5 + sp2.dx * 0.34), by = y + cell * (0.5 + sp2.dy * 0.34);
+          const R = cell * sp2.rad * (1.35 - sp2.t * 0.35);
+          const SQ = 0.5;                                   // squashed against the plate
+          ctx.beginPath(); ctx.ellipse(bx, by, R, R * SQ, 0, 0, PI2); ctx.fill();
+          // two satellites, so the edge is ragged instead of a perfect blob
           ctx.beginPath();
-          ctx.arc(x + cell * (0.5 + sp2.dx * 0.34), y + cell * (0.5 + sp2.dy * 0.34),
-                  cell * sp2.rad * (1.6 - sp2.t * 0.6), 0, PI2);
+          ctx.ellipse(bx + R * sp2.s1x, by + R * sp2.s1y * SQ, R * 0.42, R * 0.42 * SQ, 0, 0, PI2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(bx + R * sp2.s2x, by + R * sp2.s2y * SQ, R * 0.26, R * 0.26 * SQ, 0, 0, PI2);
           ctx.fill();
           ctx.restore();
         }
@@ -8835,9 +8908,28 @@
           if (gl.t <= 0) glow[r][c] = null;
         }
 
-        // a cleared-but-not-yet-popped fruit still sits here
-        if (grid[r][c] === -1 && ghost[r][c] !== null && ghost[r][c] >= 0)
-          fruitVisual(ghost[r][c], x + cell/2, y + cell/2, cell * 0.88);
+        // A cleared-but-not-yet-popped fruit still sits here, winding up. Over the last
+        // SQUASH_MS before its turn it swells and flattens -- squash and stretch, the oldest
+        // trick there is for making something feel like it was hit.
+        if (grid[r][c] === -1 && ghost[r][c] !== null && ghost[r][c] >= 0) {
+          const due = ghostAt[r][c];
+          let sx = 1, sy = 1;
+          if (due) {
+            const left = due - nowMs;
+            if (left > 0 && left < SQUASH_MS) {
+              const w = 1 - left / SQUASH_MS;              // 0 -> 1 as the pop approaches
+              sx = 1 + w * 0.30; sy = 1 - w * 0.16;        // wider and shorter: braced
+            }
+          }
+          const S = cell * 0.88;
+          if (sx !== 1 || sy !== 1) {
+            ctx.save();
+            ctx.translate(x + cell / 2, y + cell / 2);
+            ctx.scale(sx, sy);
+            fruitVisual(ghost[r][c], 0, 0, S);
+            ctx.restore();
+          } else fruitVisual(ghost[r][c], x + cell/2, y + cell/2, S);
+        }
 
         // pop-in animation for newly spawned buds/crackers (scale small -> full)
         let apScale = 1;
@@ -9596,7 +9688,7 @@
     grid = layer(-1); special = layer(null); hp = layer(0); coinCell = layer(0);
     eroded = layer(0); erodeStep = 0;
     sprouted = layer(0);
-    glow = layer(null); appear = layer(0); ghost = layer(null);
+    glow = layer(null); appear = layer(0); ghost = layer(null); ghostAt = layer(0);
     const step = TUT_STEPS[tut.i];
     tut.target = step.setup();
     document.body.classList.toggle("tut-shop", !!step.buy);
@@ -10152,6 +10244,7 @@
       frameK, FRAME_STEP_MS, FRAME_MAX_K, FX_SPEED,
       clusterTier, clusterPayoff, TIER_SPLAT, TIER_SHOCK, TIER_WASH, HITSTOP_MS,
       SHARD_N, SHARD_MAX, get liveShards() { return liveShards; },
+      flyShards, FLY_SHARD_MAX, SQUASH_MS, get ghostAt() { return ghostAt; },
       get fruitShards() { return fruitShards; }, buildFruitShards, burst,
       COMBO_HEAT_FROM, COMBO_HEAT_FULL, updateStreakBadge,
       POP_STAGGER_MS,

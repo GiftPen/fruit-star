@@ -109,6 +109,27 @@ window.addEventListener('load', () => setTimeout(async () => {
   F.resetEffects();
   chk('resetEffects releases it too', F.liveShards, 0);
 
+  // ---- a doomed fruit winds up before it goes ----
+  // Without it a fruit simply vanishes and there is no moment of impact at all.
+  chk('there is a wind-up window', F.SQUASH_MS > 0, true);
+
+  // ---- pieces that leave the board ----
+  // The canvas IS the board, so anything drawn on it is clipped at the rim. These ride the
+  // full-screen overlay instead, which is the only way a piece can cross the edge.
+  const fxBox = document.getElementById('coinfx');
+  const countFly = () => fxBox.querySelectorAll('.fly-shard').length;
+  F.start('rush');
+  for (const el of [...fxBox.querySelectorAll('.fly-shard')]) el.remove();
+  chk('nothing is flying to begin with', countFly(), 0);
+  F.flyShards(3, 3, 0, 8);
+  chk('a big pop throws pieces clear of the board', countFly(), 8);
+  chk('and they are on the overlay, not the canvas',
+      [...fxBox.querySelectorAll('.fly-shard')].every(e => e.style.backgroundImage.includes('url')), true);
+  // they must be bounded -- this is DOM, and an unbounded spray would pile up nodes
+  for (let i = 0; i < 40; i++) F.flyShards(3, 3, 0, 8);
+  chk('the spray is capped', countFly() <= F.FLY_SHARD_MAX + 40 + 8, true);
+  for (const el of [...fxBox.querySelectorAll('.fly-shard')]) el.remove();
+
   // ---- the pop sound climbs across the wave instead of repeating one note.
   // Assert the FREQUENCY. An earlier version only checked that the caller passed a step
   // along, which still passed after the pitch term was deleted -- a vacuous test.
