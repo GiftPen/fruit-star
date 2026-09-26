@@ -8795,7 +8795,10 @@
     // be squeezed into a row it kept colliding with.
     if (wasDanger) {
       const lw = Math.max(2.5, cell * 0.10);
-      const pulse = 0.5 + 0.5 * Math.sin(frame * 0.10);
+      // 0.07 rad/frame is one full breath every ~90 frames, i.e. 1.5s at 60fps. It read as
+      // a flicker at 0.10 (1.05s) -- a warning that is always on wants to be slow enough
+      // to sit behind the play, not fast enough to pull the eye off the board.
+      const pulse = 0.5 + 0.5 * Math.sin(frame * 0.07);
       ctx.save();
       ctx.globalAlpha = 0.30 + pulse * 0.40;
       ctx.strokeStyle = "#ff5a5f";
