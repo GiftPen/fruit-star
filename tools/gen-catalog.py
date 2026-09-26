@@ -126,6 +126,16 @@ def _emit_traits(ts, L):
                  f"`{full_prompt('traits', tr['id'], tr['fruits'])}` |")
 
 
+# The 57 trait prompts were rewritten on 2026-09-26 as FINISHED prompts -- subject, colour
+# and style merged into one string, in the order a generator reads best, meant to be copied
+# once. The 135 relic prompts are still subjects that get the style appended. Anything added
+# to a finished prompt is therefore said twice: the style twice, the no-face line twice, the
+# colour twice. That duplication is what the colour and face guards were reporting, which is
+# why they fired on all 57 traits at once and on no relic at all.
+def is_finished(subject):
+    return 'square 1:1' in (subject or '')
+
+
 def colour_clause(fruits, rid, prompt):
     """What to tell the generator about colour. Named fruit gets named colours; a picture of
     fruit in general gets the palette; anything else gets nothing.
@@ -156,6 +166,7 @@ def full_prompt(kind, rid, fruits):
     is, then how to draw it."""
     subject = (PROMPTS[kind].get(rid) or '').strip().rstrip('.')
     if not subject: return '—'
+    if is_finished(subject): return subject + '.'      # already whole; adding to it repeats it
     key = rid if kind == 'relics' else 'trait_' + rid
     style = ST['trait_suffix' if kind == 'traits' else 'suffix'].lstrip(', ')
     face = '' if key in WITH_FACE else ' ' + ST['no_face'] + ','
@@ -189,30 +200,58 @@ def art_mark(key):
 _done_r = sum(1 for r in d['relics'] if art_mark('relic_' + r['id']) == '✅')
 _done_t = sum(1 for t in d['traits'] if art_mark('trait_' + t['id']) == '✅')
 
-# A fruit prompt that also spells its own hex is a second source of truth, and the one that
-# goes stale. The colour comes from the game now; the subject must not repeat it.
+# A subject may name its own colour, and for some fruit it has to: banana is #00b4d8 and
+# peach #ffab8f, so a generator told only "banana" draws a yellow one. Nothing tints the art
+# at runtime either -- icons are shown exactly as drawn. So the question is not whether the
+# subject states a colour but whether it states the RIGHT one; a hex that no longer matches
+# the game is the real failure, and the one that would go unnoticed.
 _byid = {x['id']: x for x in d['relics']}
 _tbyid = {x['id']: x for x in d['traits']}
-_hexed = ([f"relic {k}" for k, v in PROMPTS['relics'].items()
-           if _byid.get(k, {}).get('fruits') and re.search(r'#[0-9a-fA-F]{6}', v)] +
-          [f"trait {k}" for k, v in PROMPTS['traits'].items()
-           if _tbyid.get(k, {}).get('fruits') and re.search(r'#[0-9a-fA-F]{6}', v)])
-if _hexed:
-    print('과일 색은 게임에서 붙습니다 — 프롬프트에 직접 쓴 색을 지우세요:', ', '.join(_hexed))
+def _wrong_hex(idx, prompt):
+    ok = {GAME_COLORS[i] for i in idx}
+    return [h for h in re.findall(r'#[0-9a-fA-F]{6}', prompt) if h.lower() not in ok]
+_stale_hex = ([f"relic {k}: {_wrong_hex(_byid[k]['fruits'], v)}"
+               for k, v in PROMPTS['relics'].items()
+               if _byid.get(k, {}).get('fruits') and _wrong_hex(_byid[k]['fruits'], v)] +
+              [f"trait {k}: {_wrong_hex(_tbyid[k]['fruits'], v)}"
+               for k, v in PROMPTS['traits'].items()
+               if _tbyid.get(k, {}).get('fruits') and _wrong_hex(_tbyid[k]['fruits'], v)])
+if _stale_hex:
+    print('프롬프트의 색이 게임의 과일 색과 다릅니다 — 게임을 따르도록 고치세요:',
+          ', '.join(_stale_hex))
     sys.exit(1)
 
 # A subject that talks about a face while the no-face line is being appended to it is a
 # contradiction the generator resolves at random, so it is an error here rather than a surprise
 # in the image.
 _FACEWORD = re.compile(r'\b(face|eyes?|eyebrows?|mouth|smil\w*|beak|muzzle)\b', re.I)
+# A finished prompt carries its own no-face line, so the word "face" in it IS that line, not
+# a contradiction. Only a prompt this generator is about to append to can contradict it.
 _face_bad = ([k for k, v in PROMPTS['relics'].items()
-              if _FACEWORD.search(v) and k not in WITH_FACE] +
+              if not is_finished(v) and _FACEWORD.search(v) and k not in WITH_FACE] +
              ['trait_' + k for k, v in PROMPTS['traits'].items()
-              if _FACEWORD.search(v) and 'trait_' + k not in WITH_FACE])
+              if not is_finished(v) and _FACEWORD.search(v) and 'trait_' + k not in WITH_FACE])
 if _face_bad:
     print('프롬프트가 얼굴을 말하는데 _style.with_face 에 없습니다 (얼굴 금지 문구와 충돌):',
           ', '.join(_face_bad))
     sys.exit(1)
+# Every prompt in the catalogue is meant to be pasted ONCE, so no instruction may appear in
+# it twice. Without this, dropping the finished-prompt pass-through above is silent: the
+# guards all skip finished prompts, so the duplication it causes has nothing left to report.
+_TWICE = [('스타일', 'cute cartoon mobile game icon'), ('얼굴 금지', 'do not give the object a face'),
+          ('배경', 'plain flat pure white background')]
+_dup = []
+for _kind, _rows in (('relics', d['relics']), ('traits', d['traits'])):
+    for _x in _rows:
+        _p = full_prompt(_kind, _x['id'], _x['fruits']).lower()
+        for _lbl, _needle in _TWICE:
+            if _p.count(_needle) > 1:
+                _dup.append(f"{_kind[:-1]} {_x['id']}: {_lbl} {_p.count(_needle)}회")
+if _dup:
+    print('완성된 프롬프트에 같은 지시가 두 번 들어갔습니다:', ', '.join(_dup[:8]),
+          f'... 총 {len(_dup)}건' if len(_dup) > 8 else '')
+    sys.exit(1)
+
 _face_unused = [k for k in WITH_FACE
                 if k not in PROMPTS['relics'] and k.replace('trait_', '', 1) not in PROMPTS['traits']]
 if _face_unused:
