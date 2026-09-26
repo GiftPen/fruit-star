@@ -22,6 +22,10 @@ SCREENS = {
             " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
             " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"
             " F.dirty=true; F.draw();"),
+  # the trait picker, with the seedling family on the shelf
+  'traits': ("D.getElementById('btn-challenge').click(); F.openTraits();"
+             " F.traitOffers=['cherry_seed','orange_seed','kiwi_seedling',"
+             " 'lemon_seed','grape_seed','peach_seed']; F.renderTraits();"),
   'arcade2': ("D.getElementById('btn-arcade').click(); F.score = 8400; F.coins = 120;"
               " F.streak = 4; F.updateHUD();"),
   'met':   "D.getElementById('btn-challenge').click(); F.score = 1840; F.stageScore = 1840; F.updateHUD();",

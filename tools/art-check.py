@@ -54,8 +54,18 @@ window.addEventListener('load', () => setTimeout(async () => {
   for (const k of ids) F.iconEl(k, 'x', 'probe');
   await sleep(900);
 
+  // "painted" is not enough: art REPLACES the emoji text, so a slot sized only by font-size
+  // collapses to 0x0 the instant its art lands and the icon is simply absent. .tr-ic did
+  // exactly that, and this check passed while the trait picker showed nothing at all. The
+  // element has to be in the document to have a size, so it is measured in a throwaway host.
+  const stage = document.createElement('div');
+  stage.style.cssText = 'position:fixed;left:-9999px;top:0';
+  document.body.appendChild(stage);
   const painted = el => el.classList.contains('art-ic') &&
                         /url\(/.test(el.style.backgroundImage) && el.textContent === '';
+  const sized = el => { stage.appendChild(el);
+    const r = el.getBoundingClientRect(); const ok = r.width >= 8 && r.height >= 8;
+    return { ok, w: Math.round(r.width), h: Math.round(r.height) }; };
   const built = {};
   for (const k of ids) {
     const id = k.replace(/^(relic|trait)_/, '');
@@ -63,6 +73,20 @@ window.addEventListener('load', () => setTimeout(async () => {
     built[k] = painted(el);
   }
   chk('every listed id renders as art, not emoji', Object.keys(built).filter(k => !built[k]), []);
+
+  // ...and in every slot it is drawn in, with a real size
+  const SLOTS = ['of-ic', 'tr-ic', 'inf-ic', 'bk-ic', 'th-ic'];
+  const tiny = [];
+  for (const k of ids) {
+    const id = k.replace(/^(relic|trait)_/, '');
+    for (const cls of SLOTS) {
+      const el = k[0] === 'r' ? F.relicIcon(id, cls) : F.traitIcon(id, cls);
+      if (!painted(el)) continue;
+      const s2 = sized(el);
+      if (!s2.ok) tiny.push(`${k} @ .${cls} = ${s2.w}x${s2.h}`);
+    }
+  }
+  chk('art has a size in every slot it is drawn in', tiny.slice(0, 6), []);
 
   // An id with no art must still render -- as its emoji, never as a blank square. The relic
   // named here used to be 지구력, which then got art and broke the check for the happiest
@@ -86,10 +110,29 @@ window.addEventListener('load', () => setTimeout(async () => {
   F.renderShop(); await sleep(600);
   const shopIcons = [...document.querySelectorAll('#shop .of-ic')];
   const shopArt = shopIcons.filter(painted).length;
+  const relicIds = ids.filter(k => k[0] === 'r');
   chk('the shop shows the art on the card', shopArt, shopIcons.length);
-  chk('and there were cards to look at', shopIcons.length, ids.length);
+  // relics only -- the shelf was set from relicIds above. Comparing against every id passed
+  // only while there were no trait files at all; the first trait art broke it.
+  chk('and there were cards to look at', shopIcons.length, relicIds.length);
+  F.closeShop(); await sleep(100);
 
-  document.title = 'RESULT ' + JSON.stringify({ fails, ids: ids.length, shopArt, shopIcons: shopIcons.length });
+  // ...and trait art has to reach ITS screen, which is a different one
+  const traitIds = ids.filter(k => k[0] === 't');
+  let traitArt = 0, traitRows = 0;
+  if (traitIds.length) {
+    F.openTraits(); await sleep(150);
+    F.traitOffers = traitIds.map(k => k.slice(6));
+    F.renderTraits(); await sleep(600);
+    const icons = [...document.querySelectorAll('#traits .tr-ic')];
+    traitRows = icons.length;
+    traitArt = icons.filter(painted).length;
+    chk('the trait picker shows the art', traitArt, traitRows);
+    chk('and there were traits to look at', traitRows, traitIds.length);
+  }
+
+  document.title = 'RESULT ' + JSON.stringify({ fails, ids: ids.length, shopArt,
+                     shopIcons: shopIcons.length, traitArt, traitRows });
  } catch (e) { document.title = 'THREW ' + e.message; }
 }, 700));
 </script>"""
@@ -108,6 +151,7 @@ if not m:
     print('   ! 렌더 검사 실패:', t.group(1)[:200] if t else ''); sys.exit(1)
 r = json.loads(m.group(1))
 print(f"   렌더: 아트 {r['ids']}개 · 상점 아이콘 {r['shopIcons']}개 중 아트 {r['shopArt']}개")
+print(f"   특성 화면: {r.get('traitRows', 0)}행 중 아트 {r.get('traitArt', 0)}개")
 for f in r['fails']: print('   !', json.dumps(f, ensure_ascii=False)[:200])
 
 bad = missing or unused or unknown or heavy or r['fails']
