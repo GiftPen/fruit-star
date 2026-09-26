@@ -1520,6 +1520,19 @@
   const TIER_SPLAT = 3, TIER_SHOCK = 7, TIER_WASH = 10;
   const clusterTier = n => (n >= TIER_WASH ? 3 : n >= TIER_SHOCK ? 2 : n >= TIER_SPLAT ? 1 : 0);
   const HITSTOP_MS = 70;       // long enough to feel, short enough not to read as a stutter
+  // Above every tier: the board is EMPTY. Tiers 1-3 are all "the same thing, louder" -- more
+  // juice, a bigger shove, a stronger wash -- so a clear board cannot just be tier 4 or it
+  // lands as nothing. It gets the one flourish that is impossible at any other moment: the
+  // plate itself, all 64 recesses bare, lit one rank at a time by a wave running out from
+  // where the last cluster went.
+  const ALLCLEAR_MS = 1500;    // how long the whole flourish lives
+  const ALLCLEAR_HOLD = 900;   // ...and how much of it plays before the turn refills the board
+  // A bare board is not automatically an achievement. Round 1 opens with ten fruit and the
+  // board stays sparse for several turns, so "nothing left" is reachable by popping three --
+  // and a 1.5s flourish for popping three would make the rare thing feel cheap within a
+  // minute of starting. It has to have been a real board. TIER_WASH is already the line the
+  // game draws for "that was huge", so the same number draws this one.
+  const ALLCLEAR_MIN = TIER_WASH;
   const POP_STAGGER_MS = 38;   // delay per unit of DISTANCE from the blast (not per cell):
                                // cells at the same radius pop together, so a bomb reads as
                                // one expanding ring (~110ms) instead of 24 staggered cells
@@ -2161,6 +2174,7 @@
   let shock = null;           // tier 2: {cx, cy, t} shove radiating through the cells
   let wash = null;            // tier 3: {col, t} full-screen colour wash
   let hitstop = 0;            // tier 2: ms of frozen animation still owed
+  let allClear = null;        // above the tiers: {cx, cy, t} light wave over an empty plate
   let dirty = true;           // redraw needed; when idle we skip drawing to save battery/heat
   let frame = 0;              // frame counter for idle animations (e.g. bomb wiggle)
   const fruitImg = [];        // loaded SVG Images per color slot
@@ -2486,7 +2500,7 @@
 
   function resetEffects() {
     particles = []; birds = []; flares = []; waves = []; links = []; floats = []; clearCoinFly();
-    splats = []; shock = null; wash = null; hitstop = 0; liveShards = 0;
+    splats = []; shock = null; wash = null; hitstop = 0; liveShards = 0; allClear = null;
     shake = 0; flash = 0; dirty = true;
   }
   function randInt(n) { return Math.floor(Math.random() * n); }
@@ -3204,7 +3218,7 @@
       tipItem_star: (p, sc) => `<b>별</b> · ${p}코인<br>놓고 탭하면 같은 색을 별자리로 이어 정리하고 코인을 떨굽니다. 발동 시 +${sc}점.`, tabRelics: "유물", tabTraits: "특성",
       traitPick: "특성 선택", doubleChip: "2배", myRelics: "내 유물", prep: "준비",
       best: "최고", stage: "스테이지", score: "점수", scoreBest: (a, b) => `점수 ${a} · 최고 ${b}`,
-      touchChip: "👆 터치", spawnChip: "➕ 매턴",
+      touchChip: "👆 터치", spawnChip: "➕ 매턴", allClear: "올 클리어!",
       nextLabel: "NEXT",
       spawnMenuTitle: "매턴 과일",
       spawnBase: "기본", spawnFromRelic: "유물·특성", spawnFromBuy: "구매", spawnTotal: "합계",
@@ -3617,7 +3631,7 @@
       tipItem_star: (p, sc) => `<b>Star</b> · ${p} coins<br>Place it and tap to link one colour into a constellation and drop coins. +${sc} when it fires.`, tabRelics: "Relics", tabTraits: "Traits",
       traitPick: "Pick a trait", doubleChip: "×2", myRelics: "My relics", prep: "",
       best: "Best", stage: "Stage", score: "Score", scoreBest: (a, b) => `Score ${a} · Best ${b}`,
-      touchChip: "👆 Touches", spawnChip: "➕ Per turn",
+      touchChip: "👆 Touches", spawnChip: "➕ Per turn", allClear: "ALL CLEAR!",
       nextLabel: "NEXT",
       spawnMenuTitle: "Fruit per turn",
       spawnBase: "Base", spawnFromRelic: "Relics & traits", spawnFromBuy: "Bought", spawnTotal: "Total",
@@ -4029,7 +4043,7 @@
       traitPick: "特性を選ぶ", doubleChip: "×2", myRelics: "所持レリック", prep: "準備",
       best: "ベスト", stage: "ステージ", score: "スコア",
       scoreBest: (a, b) => `スコア ${a} · ベスト ${b}`,
-      touchChip: "👆 タッチ", spawnChip: "➕ 毎ターン",
+      touchChip: "👆 タッチ", spawnChip: "➕ 毎ターン", allClear: "オールクリア!",
       nextLabel: "NEXT",
       spawnMenuTitle: "毎ターンのフルーツ",
       spawnBase: "基本", spawnFromRelic: "遺物・特性", spawnFromBuy: "購入", spawnTotal: "合計",
@@ -4441,7 +4455,7 @@
       traitPick: "选择特性", doubleChip: "×2", myRelics: "我的遗物", prep: "准备",
       best: "最高", stage: "关卡", score: "分数",
       scoreBest: (a, b) => `分数 ${a} · 最高 ${b}`,
-      touchChip: "👆 触摸", spawnChip: "➕ 每回合",
+      touchChip: "👆 触摸", spawnChip: "➕ 每回合", allClear: "全部清除!",
       nextLabel: "NEXT",
       spawnMenuTitle: "每回合水果",
       spawnBase: "基础", spawnFromRelic: "遗物·特性", spawnFromBuy: "购买", spawnTotal: "合计",
@@ -6223,6 +6237,14 @@
       graft: () => [0, 4, 7, 12, 16].forEach((n, i) =>
                      tone({ f: hz(n) * 4, dur: 0.2, vol: 0.12, type: "sine", delay: i * 0.05 })),
       expire:() => tone({ f: 400, f2: 190, dur: 0.22, vol: 0.16, type: "triangle" }),
+      // An empty board is the rarest thing that can happen, so its cue climbs past where
+      // every other one stops -- two octaves of the scale, then a ringing fifth held under it.
+      allclear: () => {
+        [0, 4, 7, 12, 16, 19, 24].forEach((n, i) =>
+          tone({ f: hz(n) * 2, dur: 0.26, vol: 0.20, type: "triangle", delay: i * 0.055 }));
+        tone({ f: hz(12) * 2, dur: 1.1, att: 0.04, vol: 0.13, type: "sine", delay: 0.40 });
+        tone({ f: hz(19) * 2, dur: 1.1, att: 0.04, vol: 0.09, type: "sine", delay: 0.42 });
+      },
     };
 
     // ...args, not one: the pop sound needs the fruit AND how far into the cluster's wave it
@@ -7001,7 +7023,7 @@
     dirty = true;
 
     // only a real PLACEMENT ends a turn (spawn + cracker + game-over). A manual item tap is FREE.
-    const endTurn = () => {
+    const turnBody = () => {
       if (placement) {
         spawnBuds(spawnCount());
         // staged gimmick: once crackers are unlocked, one spawns every few touches
@@ -7033,6 +7055,25 @@
         busy = false;
         updateHUD();      // the "leave early" button needs !busy, which was still true above
       }
+    };
+
+    // A clear board lasts exactly as long as it takes spawnBuds to refill it -- which is the
+    // first thing turnBody does. So the check goes in front of the body, and the body waits
+    // for the flourish. Cheap: filledCount only runs on turns that actually popped something.
+    const endTurn = () => {
+      // How full the board was before this turn, with no extra bookkeeping: everything that
+      // was on it is exactly what this turn removed, or the board would not be empty now.
+      const wiped = popped + (placement ? 1 : 0);
+      if (wiped >= ALLCLEAR_MIN && filledCount() === 0) {
+        allClear = { cx: pad + c0 * cell + cell / 2, cy: pad + r0 * cell + cell / 2, t: 0 };
+        SFX.play("allclear");
+        flash = Math.max(flash, 0.5);
+        hitstop = Math.max(hitstop, 180);       // the game holds still: the loudest thing here is the pause
+        busy = true; dirty = true;
+        setTimeout(turnBody, ALLCLEAR_HOLD);
+        return;
+      }
+      turnBody();
     };
 
     // The turn's new fruits used to land the instant the chain's LOGIC finished, dropping them
@@ -8753,7 +8794,7 @@
     let live = particles.length || birds.length || flares.length || waves.length || links.length
              || floats.length || coinsShown !== coins
              || shake > 0.3 || flash > 0.01
-             || splats.length || shock || wash || hitstop > 0 || wasDanger;
+             || splats.length || shock || wash || hitstop > 0 || wasDanger || allClear;
     if (!live) for (let r = 0; r < ROWS && !live; r++) for (let c = 0; c < COLS; c++)
       if (glow[r][c] || appear[r][c] > 0 || special[r][c] === "bomb") { live = true; break; }
     if (!dirty && !live) { requestAnimationFrame(draw); return; }
@@ -8773,6 +8814,7 @@
     }
     if (shock) { shock.t += 0.055 * k; if (shock.t >= 1) shock = null; }
     if (wash) { wash.t -= 0.055 * k; if (wash.t <= 0) wash = null; }
+    if (allClear) { allClear.t += (FRAME_STEP_MS * k) / ALLCLEAR_MS; if (allClear.t >= 1) allClear = null; }
 
     // one clock reading for the whole frame: the wind-up before each pop is timed against it
     const nowMs = performance.now();
@@ -8790,6 +8832,58 @@
     if (!boardArt) buildBoardArt();
     if (boardArt) ctx.drawImage(boardArt, 0, 0, boardPx, boardH);
     else { ctx.fillStyle = PLATE.bg; roundRect(0, 0, boardPx, boardH, 18); ctx.fill(); }
+
+    // Empty: the plate itself is the whole picture, so the plate is what performs. A gold
+    // front runs out from the cluster that finished the job, lighting each bare recess as it
+    // passes, and the word lands in the middle. It cannot collide with anything -- the reason
+    // it can be drawn here at all is that there is nothing left on the board.
+    if (allClear) {
+      const t = allClear.t;
+      const front = t * 1.3 * Math.hypot(boardPx, boardH);
+      const band = cell * 2.6;                          // ~3 ranks lit at once: one is a thin
+                                                        // line crawling, not a wave
+      const tail = Math.min(1, (1 - t) * 2.2);          // the lit ranks dim out at the end
+      ctx.save();
+      // additive, not a flat fill. Painting #ffd76a at 0.8 alpha over a dark plate gives a
+      // dull tan square that reads as a sticker; adding it reads as the recess catching light,
+      // which is the only thing that makes a bare plate worth looking at.
+      ctx.globalCompositeOperation = "lighter";
+      ctx.fillStyle = "#8a6a1e";
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        const x = pad + c * cell, y = pad + r * cell;
+        const dd = Math.hypot(x + cell / 2 - allClear.cx, y + cell / 2 - allClear.cy);
+        const lit = 1 - Math.abs(dd - front) / band;
+        if (lit <= 0) continue;
+        ctx.globalAlpha = lit * lit * tail;
+        roundRect(x + cell * 0.10, y + cell * 0.10, cell * 0.80, cell * 0.80, cell * 0.22);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = "source-over";
+      // the rim catches the same light, so the plate reads as one object lighting up
+      ctx.globalAlpha = Math.min(1, t * 6) * tail * 0.9;
+      ctx.strokeStyle = "#ffd76a";
+      ctx.lineWidth = Math.max(3, cell * 0.12);
+      roundRect(ctx.lineWidth / 2, ctx.lineWidth / 2, boardPx - ctx.lineWidth, boardH - ctx.lineWidth, 18);
+      ctx.stroke();
+      ctx.restore();
+
+      // the word: overshoots its size and settles, the way the score popups do
+      const grow = Math.min(1, t / 0.16);
+      const scl = 1.25 - 0.25 * (1 - Math.pow(1 - grow, 3)) + (1 - grow) * 0.0;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(grow, (1 - t) / 0.28));
+      ctx.translate(boardPx / 2, boardH / 2);
+      ctx.scale(scl, scl);
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = `800 ${Math.round(cell * 0.66)}px Maplestory, system-ui, sans-serif`;
+      ctx.lineWidth = Math.max(3, cell * 0.10);
+      ctx.strokeStyle = "rgba(0,0,0,0.45)";
+      ctx.lineJoin = "round";
+      ctx.strokeText(d("allClear"), 0, 0);
+      ctx.fillStyle = "#ffe89a";
+      ctx.fillText(d("allClear"), 0, 0);
+      ctx.restore();
+    }
 
     // Nearly full: the plate itself breathes red. This replaces a "⚠️ 위험!" chip that had to
     // be squeezed into a row it kept colliding with.
@@ -10281,6 +10375,8 @@
       POP_STAGGER_MS,
       get splats() { return splats; }, get shock() { return shock; },
       get wash() { return wash; }, get hitstop() { return hitstop; },
+      get allClear() { return allClear; }, set allClear(v) { allClear = v; },
+      ALLCLEAR_MS, ALLCLEAR_HOLD, ALLCLEAR_MIN,
       resetFrameClock: () => { frameLast = -1; },
       get particles()   { return particles; },
       get waves()       { return waves; },
