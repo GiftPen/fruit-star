@@ -4,6 +4,7 @@ so what is checked here is that no coin site can drift again: after the art load
 places a coin emoji may still survive are relic ICONS (mint/dust/gold_vein), which are emoji
 like every other relic icon. Every other coin in the UI must be a .cn node carrying the art."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 TEST = """<script>
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -92,15 +93,15 @@ window.addEventListener('load', () => setTimeout(async () => {
 </script>"""
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_coin.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read().replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=40000','--dump-dom','http://localhost:8899/_coin.html?test=1'],
+        '--virtual-time-budget=40000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_coin.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:

@@ -2170,7 +2170,8 @@
   let dirty = true;           // redraw needed; when idle we skip drawing to save battery/heat
   let frame = 0;              // frame counter for idle animations (e.g. bomb wiggle)
   const fruitImg = [];        // loaded SVG Images per color slot
-  let fruitSprite = [];       // pre-rendered offscreen canvases (sprite cache) per color slot
+  let fruitSprite = [];
+  let fruitShards = [];        // each fruit pre-cut into SHARD_N wedges, for the burst
   let birdImg = null;         // loaded sparrow (참새) SVG image for the bird item
   let coinImg = null;         // optional coin art; falls back to the drawn disc below
   let bombImg = null;         // loaded bomb SVG image for the bomb item
@@ -2489,7 +2490,7 @@
 
   function resetEffects() {
     particles = []; birds = []; flares = []; waves = []; links = []; floats = []; clearCoinFly();
-    splats = []; shock = null; wash = null; hitstop = 0;
+    splats = []; shock = null; wash = null; hitstop = 0; liveShards = 0;
     shake = 0; flash = 0; dirty = true;
   }
   function randInt(n) { return Math.floor(Math.random() * n); }
@@ -8023,12 +8024,34 @@
     const cy = pad + r * cell + cell / 2;
     // splash ring
     particles.push({ type: "ring", x: cx, y: cy, life: 1, color: col, rad: cell * 0.12 });
-    // juice droplets (spray up, then gravity pulls them down)
-    for (let i = 0; i < 14; i++) {
+
+    // The fruit comes apart into pieces of itself. This is the whole point of the burst: the
+    // thing that explodes has to be the thing you popped, not a puff of the same colour.
+    // Each shard is a drawImage every frame it lives. A nine-fruit clear already adds 50 of
+    // them; a twenty-fruit clear would add a hundred, and a per-item blit count in that range
+    // is what made the board cache necessary. Past the cap the burst still throws juice, it
+    // just stops adding pieces -- by then the screen is full of them anyway.
+    const shards = typeof color === "number" ? fruitShards[color] : null;
+    if (shards && liveShards < SHARD_MAX) {
+      liveShards += shards.length;
+      for (let k = 0; k < shards.length; k++) {
+        // each wedge leaves along its own bearing, so the fruit visibly splits apart
+        const a = ((k + 0.5) / shards.length) * PI2 - Math.PI / 2 + (fxRnd() - 0.5) * 0.5;
+        const sp = 1.6 + fxRnd() * 2.2;
+        particles.push({
+          type: "shard", img: shards[k], x: cx, y: cy,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.1,
+          rot: 0, vr: (fxRnd() - 0.5) * 0.34, life: 1,
+          size: cell * (0.92 + fxRnd() * 0.16)
+        });
+      }
+    }
+    // juice: fewer and fatter than before, because a dozen specks read as dust
+    for (let i = 0; i < 9; i++) {
       const a = fxRnd() * PI2, sp = 1 + fxRnd() * 3.2;
       particles.push({
         x: cx, y: cy, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1,
-        life: 0.8 + fxRnd() * 0.4, color: col, r: cell * (0.04 + fxRnd() * 0.09)
+        life: 0.8 + fxRnd() * 0.4, color: col, r: cell * (0.06 + fxRnd() * 0.11)
       });
     }
   }
@@ -8238,7 +8261,7 @@
     });
   }
   function loadFruits() {   // (re)load the active fruit set into sprite cache
-    fruitImg.length = 0; fruitSprite = [];
+    fruitImg.length = 0; fruitSprite = []; fruitShards = [];
     for (let i = 0; i < FRUIT_SVG.length; i++) {
       if (!FRUIT_SVG[i]) continue;
       fruitImg[i] = loadArtImg(`fruit${i}.png`, FRUIT_SVG[i], () => { buildFruitSprite(i); dirty = true; });
@@ -8417,9 +8440,46 @@
     cv.width = S; cv.height = S;
     cv.getContext("2d").drawImage(img, 0, 0, S, S);
     fruitSprite[i] = cv;
+    buildFruitShards(i);
     drawNextPreview();   // refresh preview if the queued fruit just got its art
   }
-  function rebuildSprites() { for (let i = 0; i < FRUIT_SVG.length; i++) buildFruitSprite(i); boardArt = null; }
+
+  // A fruit game should look like fruit being BURST, and ours did not: the pop was a flat
+  // wash of colour over the cell with a few specks on top, and the fruit simply vanished
+  // underneath it. It breaks into pieces of ITSELF now -- wedges cut out of the same sprite
+  // the board draws -- so the thing that explodes is recognisably the thing you popped.
+  //
+  // Cut once, at sprite-build time, into SHARD_N canvases. A shard is then one drawImage,
+  // not a clip plus a drawImage every frame: clipping per shard per frame is exactly the kind
+  // of per-item blit that made the board cache necessary in the first place.
+  const SHARD_N = 5;
+  const SHARD_MAX = 70;        // live shards across the whole board
+  let liveShards = 0;
+  function buildFruitShards(i) {
+    const sp = fruitSprite[i];
+    if (!sp) { fruitShards[i] = null; return; }
+    const S = sp.width, cx = S / 2, cy = S / 2;
+    const out = [];
+    for (let k = 0; k < SHARD_N; k++) {
+      const cv = document.createElement("canvas");
+      cv.width = S; cv.height = S;
+      const c2 = cv.getContext("2d");
+      const a0 = (k / SHARD_N) * PI2 - Math.PI / 2;
+      const a1 = ((k + 1) / SHARD_N) * PI2 - Math.PI / 2;
+      c2.beginPath();
+      c2.moveTo(cx, cy);
+      c2.arc(cx, cy, S, a0, a1);     // radius past the corner so the wedge covers the sprite
+      c2.closePath();
+      c2.clip();
+      c2.drawImage(sp, 0, 0);
+      out.push(cv);
+    }
+    fruitShards[i] = out;
+  }
+  function rebuildSprites() {
+    for (let i = 0; i < FRUIT_SVG.length; i++) buildFruitSprite(i);
+    boardArt = null;
+  }
 
   // One empty cell: a recess, not a flat fill -- shadowed top edge, lit bottom lip, soft
   // floor. Takes the context so it can go into the board cache OR straight to the screen
@@ -8759,12 +8819,19 @@
         // glow (wave passing)
         const gl = glow[r][c];
         if (gl) {
+          // A flat 50% fill of the WHOLE cell, on every cell within one step of every pop,
+          // meant a nine-fruit clear laid a solid pink carpet over a 5x5 area for half a
+          // second and buried everything else under it -- the fruit did not burst, it went
+          // under a paint tile. A shrinking disc at half that alpha reads as light thrown by
+          // the pop instead, and it leaves the board visible underneath.
           ctx.save();
-          ctx.globalAlpha = gl.t * 0.5;
+          ctx.globalAlpha = gl.t * 0.26;
           ctx.fillStyle = COLORS[gl.c];
-          roundRect(x + g, y + g, cell - g*2, cell - g*2, cell*0.22); ctx.fill();
+          ctx.beginPath();
+          ctx.arc(x + cell / 2, y + cell / 2, cell * (0.20 + gl.t * 0.26), 0, PI2);
+          ctx.fill();
           ctx.restore();
-          gl.t -= 0.048 * k;
+          gl.t -= 0.085 * k;                 // and it clears out in a third of the time
           if (gl.t <= 0) glow[r][c] = null;
         }
 
@@ -8912,6 +8979,21 @@
         ctx.globalAlpha = Math.max(0, p.life) * 0.6;
         ctx.strokeStyle = p.color; ctx.lineWidth = cell * 0.05 * p.life + 0.5;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.rad, 0, PI2); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+      if (p.type === "shard") {
+        // a wedge of the fruit's own sprite, thrown outward and tumbling. Heavier than juice
+        // (more gravity, less drag) so the pieces arc and fall rather than drift.
+        p.x += p.vx * k; p.y += p.vy * k; p.vy += 0.170 * k;
+        p.vx *= Math.pow(0.985, k); p.rot += p.vr * k; p.life -= 0.030 * k;
+        if (p.life <= 0) { particles.splice(i,1); liveShards--; continue; }
+        const sc = 0.55 + p.life * 0.45;                 // shrinks as it dies
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, p.life * 1.6);     // holds solid, then fades at the end
+        ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        const S = p.size * sc;
+        ctx.drawImage(p.img, -S / 2, -S / 2, S, S);
         ctx.restore();
         continue;
       }
@@ -10069,6 +10151,8 @@
       mfxStart, mfxStop, mfxFrame, MFX_STEP_MS, MFX_MAX_K, get mfxOn() { return mfxOn; },
       frameK, FRAME_STEP_MS, FRAME_MAX_K, FX_SPEED,
       clusterTier, clusterPayoff, TIER_SPLAT, TIER_SHOCK, TIER_WASH, HITSTOP_MS,
+      SHARD_N, SHARD_MAX, get liveShards() { return liveShards; },
+      get fruitShards() { return fruitShards; }, buildFruitShards, burst,
       COMBO_HEAT_FROM, COMBO_HEAT_FULL, updateStreakBadge,
       POP_STAGGER_MS,
       get splats() { return splats; }, get shock() { return shock; },

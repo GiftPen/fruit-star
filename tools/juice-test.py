@@ -12,6 +12,7 @@ at its own threshold and NOT below it, that they stack, that the pop sound climb
 across the wave instead of repeating one note, and that every channel drains rather than
 leaking. Thresholds are read from the game so retuning them is not a failure."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 TEST = """<script>
 window.addEventListener('load', () => setTimeout(async () => {
@@ -80,6 +81,34 @@ window.addEventListener('load', () => setTimeout(async () => {
   chk('reset clears the payoff', [F.splats.length, !!F.shock, !!F.wash, F.hitstop],
                                  [0, false, false, 0]);
 
+  // ---- the fruit has to come apart into pieces of ITSELF ----
+  // The burst used to be a flat wash of colour over the cell with a few specks on top, and
+  // the fruit simply vanished underneath it: a nine-fruit clear laid a solid pink carpet
+  // over a 5x5 area for half a second. What explodes has to be what you popped.
+  F.start('rush');
+  F.resetEffects();
+  chk('the fruit is pre-cut into shards', (F.fruitShards[0] || []).length, F.SHARD_N);
+  F.burst(3, 3, 0);
+  const shardsOf = () => F.particles.filter(p => p.type === 'shard');
+  chk('a pop throws pieces of the fruit', shardsOf().length, F.SHARD_N);
+  chk('and they are drawn from its own sprite',
+      shardsOf().every(p => p.img && p.img.width > 0), true);
+  chk('they leave in different directions',
+      new Set(shardsOf().map(p => Math.round(Math.atan2(p.vy, p.vx) * 10))).size > 1, true);
+  chk('a pop still throws juice as well',
+      F.particles.filter(p => !p.type).length > 0, true);
+
+  // shards are a drawImage per frame each, so a huge clear must not keep adding them
+  F.resetEffects();
+  for (let i = 0; i < 40; i++) F.burst(3, 3, 0);
+  chk('the number of pieces is capped', shardsOf().length <= F.SHARD_MAX + F.SHARD_N, true);
+  // ...and the counter that enforces the cap must come back down, or the cap becomes permanent
+  for (let i = 0; i < 2000; i++) F.draw();
+  chk('the pieces all clear', shardsOf().length, 0);
+  chk('and the cap is released again', F.liveShards <= 0, true);
+  F.resetEffects();
+  chk('resetEffects releases it too', F.liveShards, 0);
+
   // ---- the pop sound climbs across the wave instead of repeating one note.
   // Assert the FREQUENCY. An earlier version only checked that the caller passed a step
   // along, which still passed after the pitch term was deleted -- a vacuous test.
@@ -136,7 +165,7 @@ window.addEventListener('load', () => setTimeout(async () => {
 </script>"""
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_jt.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read().replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -144,10 +173,10 @@ try:
         # without this the audio context stays suspended, SFX.play() is a no-op, and the
         # pitch-ladder checks pass by never running
         '--autoplay-policy=no-user-gesture-required',
-        '--virtual-time-budget=30000','--dump-dom','http://localhost:8899/_jt.html?test=1'],
+        '--virtual-time-budget=30000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_jt.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:

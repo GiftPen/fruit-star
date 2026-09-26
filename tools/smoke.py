@@ -2,6 +2,7 @@
 """Random taps at the real canvas for a while: catches anything that throws under input the
 suites never think to send. Lived in /tmp and got lost; it belongs with the others."""
 import subprocess, os, re, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 BOOT_TRAP = """<script>
 window.__boot = [];
@@ -37,17 +38,17 @@ window.addEventListener('load', () => setTimeout(async () => {
 </script>"""
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_sm.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read()
         .replace('<script>', BOOT_TRAP + '<script>', 1)
         .replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=30000','--dump-dom','http://localhost:8899/_sm.html?test=1'],
+        '--virtual-time-budget=30000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=150).stdout
 finally:
-    os.remove('_sm.html')
+    os.remove(_PAGE)
 
 m = re.search(r'SMOKE (\{.*\})</title>', out, re.S)
 boot = re.search(r'BOOT (\{.*?\})</title>', out, re.S)

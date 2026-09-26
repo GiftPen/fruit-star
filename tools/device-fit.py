@@ -3,6 +3,7 @@
 Runs the real page inside an iframe of each device's CSS pixel size (headless Chrome ignores
 --window-size for innerWidth, so an iframe is the only way to get a true viewport)."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 DEVICES = [
  # 보통 폰
@@ -125,14 +126,14 @@ next();
 </script>""" % (json.dumps(DEVICES), json.dumps(ROWCASES))
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_dev.html','w',encoding='utf-8').write(HOST)
+open(_PAGE,'w',encoding='utf-8').write(HOST)
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=900,1300',
-        '--virtual-time-budget=150000','--dump-dom','http://localhost:8899/_dev.html'],
+        '--virtual-time-budget=150000','--dump-dom',f'http://localhost:8899/{_PAGE}'],
         capture_output=True, text=True, timeout=300).stdout
 finally:
-    os.remove('_dev.html')
+    os.remove(_PAGE)
 
 m = re.search(r'R (\[.*?\])</title>', out, re.S)
 if not m: print('NO RESULT'); sys.exit(1)
@@ -223,14 +224,14 @@ function next() {
 }
 next();
 </script>""" % json.dumps(NOTCHED)
-open('_notch.html','w',encoding='utf-8').write(NOTCH_HOST)
+open(_PAGE,'w',encoding='utf-8').write(NOTCH_HOST)
 try:
     nout = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=900,1100',
-        '--virtual-time-budget=45000','--dump-dom','http://localhost:8899/_notch.html'],
+        '--virtual-time-budget=45000','--dump-dom',f'http://localhost:8899/{_PAGE}'],
         capture_output=True, text=True, timeout=200).stdout
 finally:
-    os.remove('_notch.html')
+    os.remove(_PAGE)
 
 print('--- 노치/홈 인디케이터 (인셋 주입 · 12줄로 높이 제약) ---')
 shrank = []
@@ -321,14 +322,14 @@ f.onload = () => setTimeout(() => {
 }, 400);
 </script>""" % json.dumps(FOLD_STEPS)
 
-open('_fold.html','w',encoding='utf-8').write(FOLD_HOST)
+open(_PAGE,'w',encoding='utf-8').write(FOLD_HOST)
 try:
     fout = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=1000,1300',
-        '--virtual-time-budget=45000','--dump-dom','http://localhost:8899/_fold.html'],
+        '--virtual-time-budget=45000','--dump-dom',f'http://localhost:8899/{_PAGE}'],
         capture_output=True, text=True, timeout=200).stdout
 finally:
-    os.remove('_fold.html')
+    os.remove(_PAGE)
 
 fm = re.search(r'R (\{.*?\})</title>', fout, re.S)
 print('\n--- 접었다 펴기 (재로드 없이 실시간) ---')

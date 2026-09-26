@@ -9,6 +9,7 @@ rAF does not fire under virtual time, so it is replaced with a timer the test co
 is the point: the same wall-clock second is run at two different frame rates and the fruit
 has to end up in the same place."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 SHIM = """<script>
 (() => {
@@ -110,15 +111,15 @@ window.addEventListener('load', () => setTimeout(async () => {
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
 src = open('index.html', encoding='utf-8').read()
-open('_mfx.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     src.replace('<head>', '<head>' + SHIM, 1).replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=40000','--dump-dom','http://localhost:8899/_mfx.html?test=1'],
+        '--virtual-time-budget=40000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_mfx.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:

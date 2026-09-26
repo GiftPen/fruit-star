@@ -5,6 +5,7 @@ it was flying; and its speed was a per-frame step, so it was a ~0.6s flick that 
 still on a 120Hz phone. What is checked here is that a flying coin leaves the board, reaches
 the chip, takes its time getting there, and that the counter waits for it to land."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 TEST = """<script>
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -105,15 +106,15 @@ window.addEventListener('load', () => setTimeout(async () => {
 </script>"""
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_coinfly.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read().replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=60000','--dump-dom','http://localhost:8899/_coinfly.html?test=1'],
+        '--virtual-time-budget=60000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_coinfly.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:

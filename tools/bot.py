@@ -11,6 +11,7 @@ Usage:  python3 tools/bot.py [runs] [strategy ...]
         strategies: none greedy coin fruit cracker combo   (default: all of them)
 """
 import subprocess, os, re, json, sys, statistics
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 RUNS = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 12
 STRATS = sys.argv[2:] or ['none', 'greedy', 'coin', 'fruit', 'cracker', 'combo']
@@ -163,17 +164,17 @@ def play(strat, runs):
     budget runs out, and a hung Chrome dumps nothing at all -- so a sweep that overran gave
     back zero data twice. One run per process costs a second of startup and loses nothing."""
     head = f"<script>window.__RUNS={runs};window.__STRATS={json.dumps([strat])};</script>"
-    open('_bot.html','w',encoding='utf-8').write(
+    open(_PAGE,'w',encoding='utf-8').write(
         open('index.html',encoding='utf-8').read().replace('</body>', head + TEST + '</body>'))
     try:
         out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
             '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-            '--virtual-time-budget=600000','--dump-dom','http://localhost:8899/_bot.html?test=1'],
+            '--virtual-time-budget=600000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
             capture_output=True, text=True, timeout=900).stdout
     except subprocess.TimeoutExpired:
         return None
     finally:
-        os.remove('_bot.html')
+        os.remove(_PAGE)
     m = re.search(r'RESULT (\[.*\])</title>', out, re.S)
     if not m:
         t = re.search(r'<title>(.*?)</title>', out, re.S)

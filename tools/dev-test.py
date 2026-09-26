@@ -6,6 +6,7 @@ be right, nothing dev-shaped appears until it is, and locking puts the board bac
 way a player sees it. The one that would really hurt is the dot stealing a tap meant for the
 bottom-left cell, so that is checked at three phone widths with a real layout."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 WIDTHS = [320, 390, 440]
 
@@ -112,14 +113,14 @@ function frame(w) {
 </script>""" % json.dumps(WIDTHS)
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_dev.html','w',encoding='utf-8').write(HOST)
+open(_PAGE,'w',encoding='utf-8').write(HOST)
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=460,900',
-        '--virtual-time-budget=40000','--dump-dom','http://localhost:8899/_dev.html'],
+        '--virtual-time-budget=40000','--dump-dom',f'http://localhost:8899/{_PAGE}'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_dev.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*?\})</title>', out, re.S)
 if not m:

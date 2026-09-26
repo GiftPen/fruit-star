@@ -7,6 +7,7 @@ added to ko only, the fallback quietly serves Korean inside English. That is wha
 catches -- by rendering every relic and trait in every language and failing on any Korean
 character that survives into a non-Korean pack."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 TEST = """<script>
 window.addEventListener('load', () => setTimeout(() => {
@@ -189,15 +190,15 @@ window.addEventListener('load', () => setTimeout(() => {
 </script>"""
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_i18n.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read().replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=30000','--dump-dom','http://localhost:8899/_i18n.html?test=1'],
+        '--virtual-time-budget=30000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=120).stdout
 finally:
-    os.remove('_i18n.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:

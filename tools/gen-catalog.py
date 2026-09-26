@@ -7,6 +7,7 @@ parsing the source, so the catalogue cannot drift from the code. Re-run it after
 either table.
 """
 import subprocess, re, os, json, sys, datetime
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 DUMP = r"""<script>
@@ -56,13 +57,13 @@ window.addEventListener('load', () => setTimeout(() => {
 }, 900));
 </script>"""
 
-open('_cat.html', 'w', encoding='utf-8').write(
+open(_PAGE, 'w', encoding='utf-8').write(
     open('index.html', encoding='utf-8').read().replace('</body>', DUMP + '</body>'))
 out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '--headless', '--disable-gpu', '--no-first-run', '--virtual-time-budget=20000',
-    '--dump-dom', 'http://localhost:8899/_cat.html?test=1'],
+    '--dump-dom', f'http://localhost:8899/{_PAGE}?test=1'],
     capture_output=True, text=True, timeout=120).stdout
-os.remove('_cat.html')
+os.remove(_PAGE)
 m = re.search(r'RESULT (\{.*?\})</title>', out, re.S)
 if not m:
     print('생성 실패: 게임에서 데이터를 못 읽었습니다 (서버가 떠 있나요?)'); sys.exit(1)

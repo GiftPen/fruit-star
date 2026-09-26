@@ -11,6 +11,7 @@ Checks the accent keeps rising past the scale (in octaves, and capped so it cann
 that it thickens at its thresholds, and that the badge's pop and heat grow with the run.
 Thresholds are read from the game, so retuning them is not a failure."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 TEST = """<script>
 window.addEventListener('load', () => setTimeout(() => {
@@ -89,16 +90,16 @@ window.addEventListener('load', () => setTimeout(() => {
 </script>"""
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_ct.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read().replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
         '--autoplay-policy=no-user-gesture-required',
-        '--virtual-time-budget=30000','--dump-dom','http://localhost:8899/_ct.html?test=1'],
+        '--virtual-time-budget=30000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_ct.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:

@@ -3,6 +3,7 @@
 in headless Chrome (it stays 500), so the game is loaded in a 390px iframe and the window is
 sized to match it -- what comes out is what a phone shows, not a stretched desktop page."""
 import subprocess, sys, os, json
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 import os as _os
@@ -57,14 +58,14 @@ f.onload = () => setTimeout(() => {{
   setTimeout(() => {{ document.title = 'READY'; }}, 500);
 }}, 400);
 </script>"""
-    open('_shot.html','w',encoding='utf-8').write(host)
+    open(_PAGE,'w',encoding='utf-8').write(host)
     try:
         subprocess.run([CHROME,'--headless','--disable-gpu','--no-first-run','--hide-scrollbars',
             f'--window-size={W},{H}','--virtual-time-budget=6000',
-            f'--screenshot={out}','http://localhost:8899/_shot.html'],
+            f'--screenshot={out}',f'http://localhost:8899/{_PAGE}'],
             capture_output=True, timeout=120)
     finally:
-        os.remove('_shot.html')
+        os.remove(_PAGE)
     print(out, os.path.getsize(out), 'bytes')
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ Every access goes through the LS helper now. This drives the game with a localSt
 throws on every call and checks it boots, starts, plays a turn and reaches the shop -- and
 that the settings which are normally persisted still apply in-session."""
 import subprocess, os, re, json, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 BLOCK = """<script>
 (function(){
@@ -118,14 +119,14 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
 src = open('index.html', encoding='utf-8').read()
 assert '<body>' in src, 'no <body> to inject the storage block before the game'
 src = src.replace('<body>', '<body>' + BLOCK, 1)
-open('_st.html','w',encoding='utf-8').write(src.replace('</body>', PROBE + '</body>'))
+open(_PAGE,'w',encoding='utf-8').write(src.replace('</body>', PROBE + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=30000','--dump-dom','http://localhost:8899/_st.html?test=1'],
+        '--virtual-time-budget=30000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_st.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:
@@ -153,7 +154,7 @@ def run(page, inject, label):
         print(f'{label}: NO RESULT', tt.group(1) if tt else '?'); return None
     return json.loads(mm.group(1))
 
-live = run('_st2.html', LIVE, 'storage(정상)')
+live = run(_PAGE, LIVE, 'storage(정상)')
 if live is None: sys.exit(1)
 print(f"storage(정상): {len(live['fails'])} fail")
 for f in live['fails'][:8]: print('   ', json.dumps(f, ensure_ascii=False))

@@ -4,6 +4,7 @@ was pinned, the 남은 터치 cell slid 149.7 -> 278.3px as digits piled up -- l
 touch -- and by round 10 the chips collided and the row was one ⚠️ away from wrapping the
 board down. These assert the row is immovable and the text stays readable, at three widths."""
 import subprocess, json, re, os, sys
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 # 1-1 through 12-3 on the real quota curve
 CASES = [("1-1",682,1100),("3-2",2800,4516),("5-2",13641,22001),("7-3",99994,161280),
@@ -59,15 +60,15 @@ window.addEventListener('load', () => setTimeout(() => {
 </script>"""  % (json.dumps(WIDTHS), json.dumps(WIDTHS), json.dumps(CASES))
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
-open('_hf.html','w',encoding='utf-8').write(
+open(_PAGE,'w',encoding='utf-8').write(
     open('index.html',encoding='utf-8').read().replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,900',
-        '--virtual-time-budget=12000','--dump-dom','http://localhost:8899/_hf.html?test=1'],
+        '--virtual-time-budget=12000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=120).stdout
 finally:
-    os.remove('_hf.html')
+    os.remove(_PAGE)
 
 m = re.search(r'RESULT (\[.*?\])</title>', out, re.S)
 if not m:
@@ -126,14 +127,14 @@ f.onload = () => setTimeout(() => {
   }, 450);
 }, 400);
 </script>"""
-open('_tabs.html','w',encoding='utf-8').write(TABS_HOST)
+open(_PAGE,'w',encoding='utf-8').write(TABS_HOST)
 try:
     tout = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=900,1000',
-        '--virtual-time-budget=20000','--dump-dom','http://localhost:8899/_tabs.html'],
+        '--virtual-time-budget=20000','--dump-dom',f'http://localhost:8899/{_PAGE}'],
         capture_output=True, text=True, timeout=120).stdout
 finally:
-    os.remove('_tabs.html')
+    os.remove(_PAGE)
 
 print('--- 정보 패널: 탭을 바꿔도 움직이지 않는가 ---')
 tm = re.search(r'R (\{.*?\})</title>', tout, re.S)

@@ -6,6 +6,7 @@ shipped. Present but unlisted -> art was made, cut out, committed, and is simply
 used. The second is the one that actually happens, because adding the file is the step that
 feels like finishing."""
 import os, re, sys, glob, json, subprocess
+_PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + '/..')
 src = open('index.html', encoding='utf-8').read()
@@ -137,14 +138,14 @@ window.addEventListener('load', () => setTimeout(async () => {
 }, 700));
 </script>"""
 
-open('_art.html','w',encoding='utf-8').write(src.replace('</body>', TEST + '</body>'))
+open(_PAGE,'w',encoding='utf-8').write(src.replace('</body>', TEST + '</body>'))
 try:
     out = subprocess.run(['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
         '--headless','--disable-gpu','--no-first-run','--window-size=430,932',
-        '--virtual-time-budget=40000','--dump-dom','http://localhost:8899/_art.html?test=1'],
+        '--virtual-time-budget=40000','--dump-dom',f'http://localhost:8899/{_PAGE}?test=1'],
         capture_output=True, text=True, timeout=180).stdout
 finally:
-    os.remove('_art.html')
+    os.remove(_PAGE)
 m = re.search(r'RESULT (\{.*\})</title>', out, re.S)
 if not m:
     t = re.search(r'<title>(.*?)</title>', out, re.S)
