@@ -5672,7 +5672,7 @@
     g.beginPath(); g.arc(cx, cy, w * 0.455, 0, PI2); g.stroke();
     const sp = fruitSprite[colorIdx];
     if (sp) {
-      const s = w * 0.74;
+      const s = w * 0.74 * fruitScaleOf(colorIdx);   // same balance as the board
       g.drawImage(sp, cx - s / 2, cy - s / 2, s, s);
     } else {
       g.fillStyle = col;
@@ -8466,7 +8466,20 @@
   }
 
   // draw a fruit filling a box of side S — uses cached SVG sprite if present, else procedural
-  function fruitVisual(kind, cx, cy, S, grounded = false) {
+  // Per-fruit draw scale. The art is generated one piece at a time, so two fruit that are
+  // both "one object filling the frame" still land at different weights: the kiwi half covers
+  // 51% of its frame where the lemon covers 39%, and on the board it read as fat beside
+  // everything else. Re-rolling the art is the wrong fix -- the same prompt gives a different
+  // drawing every time, and these are the ones we want. Tune the size instead.
+  // 1 = as drawn; area goes with the SQUARE of this. Measured on screen (each fruit alone in
+  // a cell, diffed against the same cell empty) the seven covered 30%-52% of their cell --
+  // a 1.7x spread, which is why the kiwi read as fat and the cherry as slight. These bring
+  // them all to about 40%.        체리    오렌지  키위   레몬   포도   복숭아  바나나
+  const FRUIT_SCALE =             [1.15,  1.20,  0.88,  0.97,  1.05,  1.12,  1.00];
+  const fruitScaleOf = k => FRUIT_SCALE[k] || 1;
+
+  function fruitVisual(kind, cx, cy, S0, grounded = false) {
+    const S = S0 * fruitScaleOf(kind);
     // A contact shadow is the cheapest way to stop a sprite looking pasted onto the plate:
     // without it every fruit floats, which is half of why the board read as flat.
     if (grounded) {
@@ -8474,7 +8487,7 @@
       ctx.globalAlpha = PLATE.drop;
       ctx.fillStyle = "#000";
       ctx.beginPath();
-      ctx.ellipse(cx, cy + S * 0.34, S * 0.30, S * 0.10, 0, 0, PI2);
+      ctx.ellipse(cx, cy + S0 * 0.34, S * 0.30, S * 0.10, 0, 0, PI2);
       ctx.fill();
       ctx.restore();
     }
@@ -10028,6 +10041,11 @@
       readPlate, mixHex, buildBoardArt, get boardArt() { return boardArt; },
       get dpr() { return dpr; }, get cell() { return cell; }, get boardPx() { return boardPx; },
       get boardH() { return boardH; },
+      get pad() { return pad; },
+      // draw() early-returns when nothing is dirty and nothing is animating, so a test that
+      // sets up a board by hand has no way to force a frame without this
+      get dirty() { return dirty; }, set dirty(v) { dirty = v; },
+      get fruitSprite() { return fruitSprite; },
       get ctx() { return ctx; },
       drawNextPreview,
       renderStats,
@@ -10135,7 +10153,7 @@
       get fruitStack()  { return fruitStack; },  set fruitStack(v)  { fruitStack = v; },
       get fruitBoost()  { return fruitBoost; },  set fruitBoost(v)  { fruitBoost = v; },
       get fruitCrown()  { return fruitCrown; },
-      fruitScore,
+      fruitScore, FRUIT_SCALE, fruitScaleOf,
     };
 
   requestAnimationFrame(draw);

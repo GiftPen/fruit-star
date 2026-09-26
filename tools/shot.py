@@ -12,6 +12,16 @@ SCREENS = {
   'menu':  "",
   'game':  "D.getElementById('btn-challenge').click();",
   'arcade':"D.getElementById('btn-arcade').click();",
+  # one fruit of each colour on the diagonal, and the same board empty, so the two can be
+  # diffed to get each fruit's real ink on screen
+  'diag':  ("D.getElementById('btn-challenge').click();"
+            " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
+            " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"
+            " for(let i=0;i<7;i++) F.grid[i][i]=i; F.dirty=true; F.draw();"),
+  'diag0': ("D.getElementById('btn-challenge').click();"
+            " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
+            " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"
+            " F.dirty=true; F.draw();"),
   'arcade2': ("D.getElementById('btn-arcade').click(); F.score = 8400; F.coins = 120;"
               " F.streak = 4; F.updateHUD();"),
   'met':   "D.getElementById('btn-challenge').click(); F.score = 1840; F.stageScore = 1840; F.updateHUD();",
