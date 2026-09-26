@@ -125,6 +125,32 @@ window.addEventListener('load', () => setTimeout(async () => {
   chk('a big pop throws pieces clear of the board', countFly(), 8);
   chk('and they are on the overlay, not the canvas',
       [...fxBox.querySelectorAll('.fly-shard')].every(e => e.style.backgroundImage.includes('url')), true);
+  // a bigger clear must throw a BIGGER piece, or the size of the clear is not legible
+  for (const el of [...fxBox.querySelectorAll('.fly-shard')]) el.remove();
+  F.flyShards(3, 3, 0, 2, 1);
+  const small = fxBox.querySelector('.fly-shard').getBoundingClientRect().width;
+  for (const el of [...fxBox.querySelectorAll('.fly-shard')]) el.remove();
+  F.flyShards(3, 3, 0, 2, 2.1);
+  const slab = fxBox.querySelector('.fly-shard').getBoundingClientRect().width;
+  chk('a slab is visibly bigger than an ordinary piece', slab > small * 1.6, true);
+  chk('and a slab is bigger than a cell', slab > F.cell, true);
+  for (const el of [...fxBox.querySelectorAll('.fly-shard')]) el.remove();
+
+  // the keyframes have to actually carry it off the board. The animation clock does not run
+  // under a virtual-time budget, so it is driven by hand -- without this the whole effect
+  // could be dead on arrival and every other check here would still pass.
+  F.flyShards(3, 3, 0, 6, 1.3);
+  {
+    const board = document.getElementById('game').getBoundingClientRect();
+    const els = [...fxBox.querySelectorAll('.fly-shard')];
+    for (const e of els) { const an = e.getAnimations()[0]; if (an) { an.pause(); an.currentTime = 600; } }
+    const gone = els.filter(e => { const r = e.getBoundingClientRect();
+      const mx = r.left + r.width / 2, my = r.top + r.height / 2;
+      return mx < board.left || mx > board.right || my < board.top || my > board.bottom; });
+    chk('the pieces really do leave the board', gone.length >= els.length / 2, true);
+  }
+  for (const el of [...fxBox.querySelectorAll('.fly-shard')]) el.remove();
+
   // they must be bounded -- this is DOM, and an unbounded spray would pile up nodes
   for (let i = 0; i < 40; i++) F.flyShards(3, 3, 0, 8);
   chk('the spray is capped', countFly() <= F.FLY_SHARD_MAX + 40 + 8, true);

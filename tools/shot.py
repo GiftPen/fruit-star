@@ -17,6 +17,17 @@ SCREENS = {
   # diffed to get each fruit's real ink on screen
   # a 9-cluster popped, caught mid-flight: the shards that leave the board live on the
   # full-screen overlay, so only a whole-page shot can show them
+  # a 10+ clear, caught with the slabs in the air. The animation clock does not run under
+  # virtual time, so it is driven by hand to the moment worth looking at.
+  'slab':  ("D.getElementById('btn-challenge').click();"
+            " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
+            " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"
+            " for(let r=2;r<=4;r++)for(let c=2;c<=4;c++) F.grid[r][c]=0;"
+            " F.flyShards(3,3,0,3,2.1); F.flyShards(3,3,0,5,1.1);"
+            " F.dirty=true; F.draw();"
+            " for(const e of D.querySelectorAll('.fly-shard')){"
+            "   const an=e.getAnimations()[0];"
+            "   if(an){ an.pause(); an.currentTime=300; } }"),
   'fly':   ("D.getElementById('btn-challenge').click();"
             " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){F.grid[r][c]=-1;"
             " F.special[r][c]=null;F.hp[r][c]=0;F.appear[r][c]=0;}"
