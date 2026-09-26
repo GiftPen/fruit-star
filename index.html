@@ -98,8 +98,19 @@
   body.wide .rail #top { display: flex; flex-direction: column; align-items: center;
     gap: 8px; width: 100%; padding: 0; }
   body.wide .rail .top-left { justify-content: center; flex-wrap: wrap; }
-  body.wide .rail #stats, body.wide .rail #rush-bar {
-    flex-wrap: wrap; justify-content: center; }
+  body.wide .rail #rush-bar { flex-wrap: wrap; justify-content: center; }
+  /* ---- arcade's own rail: the score is the headline, the chips are one tidy block ---- */
+  body.wide .rail #arcade-box { width: 100%; }
+  body.wide .rail #arcade-box .score-val { font-size: 40px; letter-spacing: -1px; }
+  body.wide .rail #arcade-box .best-line { font-size: 13px; }
+  body.wide .rail #stats:not(.hidden) {
+    display: flex; flex-wrap: wrap; justify-content: center; align-content: center;
+    gap: 8px; width: 100%; padding: 0; }
+  /* every chip the same height and on the same baseline. The ➕ chip is a <button> and picks
+     up the global `button { margin-top: 8px }`, which is what left it sitting 4px below its
+     neighbours -- the same trap as the purse in the rush rail. */
+  body.wide .rail #stats > .chip { height: 30px; margin: 0; display: inline-flex;
+    align-items: center; box-sizing: border-box; flex: 0 0 auto; }
   body.wide .rail #rush { width: 100%; }
   body.wide .rail #rush .rb-row { flex-wrap: wrap; justify-content: center; gap: 8px; }
   /* In the rail the goal cell is not competing with anything, so the flex:1 1 0 + overflow
@@ -121,9 +132,13 @@
   body.wide .rail #rb-left, body.wide .rail #rb-mid {
     flex-wrap: wrap; justify-content: center; overflow: visible; width: 100%; }
   /* items become a 2-wide pad instead of a 6-wide strip */
-  body.wide .rail #ishop {
+  body.wide .rail #ishop:not(.hidden) {
     display: grid; grid-template-columns: 1fr 1fr; gap: 6px; height: auto; margin-top: 0; }
   body.wide .rail #ishop .ib { max-width: none; width: 100%; height: 54px; }
+  /* Every rule below that sets `display` must exclude .hidden. These selectors out-rank the
+     `#rush.hidden { display: none }` rules by specificity, so forcing a display here dragged
+     the Star Rush HUD back onto an ARCADE screen -- stage, goal, touches and purse all
+     doubled up under the arcade score. */
   /* ---- the rails read top-down, not centred: the eye starts at the top of each column ---- */
   body.wide .rail { align-self: stretch; justify-content: flex-start; }
   /* Spread the blocks down the column when there is room, so the rails read as full rather
@@ -133,9 +148,10 @@
     body.wide .rail { justify-content: space-evenly; }
     /* the blocks take the slack themselves and spread their own rows, so the column is filled
        evenly instead of collecting all the air into one gap in the middle */
-    body.wide #rail-l > #top, body.wide #rail-l > #rush { flex: 1 1 auto; }
+    body.wide #rail-l > #top, body.wide #rail-l > #rush,
+    body.wide #rail-l > #stats:not(.hidden) { flex: 1 1 auto; }
     body.wide #rail-l > #top { justify-content: space-evenly; }
-    body.wide #rail-l > #rush { display: flex; align-items: center; }
+    body.wide #rail-l > #rush:not(.hidden) { display: flex; align-items: center; }
     body.wide #rail-l > #rush .rb-row { width: 100%; height: 100%;
       align-content: space-evenly; align-items: center; }
   }
@@ -144,7 +160,7 @@
   body.wide .rail .top-left { width: 100%; justify-content: center; }
   /* min-width:0 throughout: without it the score line's intrinsic width pushed the whole
      column past the rail and the streak badge hung 100px off the left edge */
-  body.wide .rail #rush-box { display: flex; flex-direction: column; align-items: center;
+  body.wide .rail #rush-box:not(.hidden) { display: flex; flex-direction: column; align-items: center;
     gap: 6px; width: 100%; min-width: 0; }
   body.wide .rail .rb-stage { font-size: 20px; }
   body.wide .rail .rb-stage b { font-size: 24px; }

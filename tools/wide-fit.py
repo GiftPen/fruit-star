@@ -19,13 +19,19 @@ import subprocess, os, re, json, sys
 
 # Narrow desktops matter as much as the Poki canvases: the rails track the viewport width,
 # and the widths where they get tight are exactly where labels start to clip.
+# Which HUD blocks belong to which mode. Exactly one set may be on screen.
+MODE_HUD = {'rush':   {'rush-box': True,  'rush': True,  'rush-bar': True,
+                       'arcade-box': False, 'stats': False},
+            'arcade': {'rush-box': False, 'rush': False, 'rush-bar': False,
+                       'arcade-box': True,  'stats': True}}
 SIZES = [(640, 360), (836, 470), (1031, 580), (700, 560), (820, 620), (900, 700),
          (1024, 768), (1280, 720), (1920, 1080)]
 PORTRAIT = [(390, 844), (320, 568)]      # wide mode must not steal these
 CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
 
-def probe(w, h, show_next):
+def probe(w, h, show_next, arcade=False):
+    mode_btn = 'btn-arcade' if arcade else 'btn-challenge'
     host = f"""<!doctype html><meta charset=utf-8><body style="margin:0;background:#000">
 <script>
 const f = document.createElement('iframe');
@@ -34,7 +40,7 @@ f.src = 'index.html?test=1'; document.body.appendChild(f);
 f.onload = () => setTimeout(() => {{
   try {{
     const D = f.contentDocument, W = f.contentWindow, F = W.__fs;
-    D.getElementById('btn-challenge').click();
+    D.getElementById('{mode_btn}').click();
     if ({str(show_next).lower()}) D.getElementById('rush-next').classList.remove('hidden');
     F.layout();
     setTimeout(() => {{
@@ -63,6 +69,15 @@ f.onload = () => setTimeout(() => {{
         out.rails[id] = e && e.parentElement
           ? (e.parentElement.id || e.parentElement.tagName.toLowerCase()) : null;
       }}
+      // Which HUD blocks are actually visible. Arcade and Star Rush have separate blocks and
+      // exactly one set belongs on screen: the rail rules out-rank the `.hidden` ones by
+      // specificity, and forcing a display there put the Star Rush stage, goal, touches and
+      // purse underneath the ARCADE score -- every number on the left doubled.
+      out.shown = {{}};
+      for (const id of ['arcade-box','rush-box','stats','rush','rush-bar'])
+        out.shown[id] = (() => {{ const e = D.getElementById(id); if (!e) return false;
+          const r = e.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 && getComputedStyle(e).display !== 'none'; }})();
       const rot = D.getElementById('rotate');
       out.rotate = !!(rot && rot.classList.contains('on'));
       out.boardVisible = getComputedStyle(D.getElementById('game')).display !== 'none';
@@ -142,6 +157,20 @@ for (w, h) in PORTRAIT:
     for o in d['outside']:
         fails.append(f"{w}x{h}: {o[0]} 화면 밖")
     print(f"  {w}x{h:<11} 세로 유지 (wide={d['wide']})")
+
+# ---- each mode shows its own HUD and only its own ----
+for (w, h) in [(1134, 732), (1031, 580), (900, 700)]:
+    for mode, want in MODE_HUD.items():
+        d = probe(w, h, False, arcade=(mode == 'arcade'))
+        if 'fatal' in d:
+            fails.append(f"{w}x{h} {mode}: {d['fatal']}"); continue
+        got = d.get('shown', {})
+        wrong = [k for k, v in want.items() if bool(got.get(k)) != v]
+        if wrong:
+            fails.append(f"{w}x{h} {mode}: 다른 모드의 HUD가 보임 -> "
+                         + ", ".join(f"{k}={'보임' if got.get(k) else '없음'}" for k in wrong))
+        print(f"  {w}x{h} {mode:<7} HUD "
+              + " ".join(f"{k}:{'O' if got.get(k) else '-'}" for k in want))
 
 print(f"wide-fit: {len(fails)} fail")
 for f in fails[:12]: print('   ', f)
