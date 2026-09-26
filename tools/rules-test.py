@@ -149,9 +149,14 @@ window.addEventListener('load', () => setTimeout(() => {
   if (F.computeMaxLevel() !== 10) modeFails.push({knob:'MAX_LEVEL', got:F.computeMaxLevel(), want:10});
   // Verify the SHAPE of the quota curve, not the tuning: these numbers are meant to be
   // changed by feel, and a test that pins them just has to be edited every time.
-  if (F.rushQuota(1) !== F.RUSH_QUOTA_1)
-    modeFails.push({knob:'quota starts at RUSH_QUOTA_1', got:F.rushQuota(1), want:F.RUSH_QUOTA_1});
-  for (let st = 2; st <= 12; st++) {
+  // The opening stages are a hand-set table now -- readable goals like 1,000 rather than
+  // whatever the curve landed on -- so they are checked against the table, and the curve is
+  // checked from where the table ends.
+  const EQ = F.EARLY_QUOTA || [];
+  for (let i = 0; i < EQ.length; i++)
+    if (F.rushQuota(i+1) !== EQ[i])
+      modeFails.push({knob:'early quota s'+(i+1), got:F.rushQuota(i+1), want:EQ[i]});
+  for (let st = Math.max(2, EQ.length + 1); st <= 12; st++) {
     const r = Math.floor((st-1)/F.STAGES_PER_ROUND), sub = (st-1)%F.STAGES_PER_ROUND;
     let q = F.RUSH_QUOTA_1;
     for (let k = 0; k < r; k++) q *= F.roundSpan(k);
@@ -218,18 +223,45 @@ window.addEventListener('load', () => setTimeout(() => {
   if (zeroed.length) oddsFails.push({case: 'starved', got: zeroed, want: []});
   ochk('and every boosted table still totals 100', offTotal.length, 0, 0);
   if (offTotal.length) oddsFails.push({case: 'totals', got: offTotal, want: []});
-  // boosting every fruit equally changes nothing -- it is a share, not an absolute
+  // Boosts are absolute WEIGHT now, not a multiplier on a share, so boosting every fruit
+  // equally no longer leaves the table untouched: it flattens it toward even. That follows
+  // from what the card says -- "1만큼 더 등장", one more unit -- and it favours the rare fruit,
+  // which is the whole reason the formula changed. No single card does it; it takes a boost
+  // for all seven. What must still hold is that it flattens rather than shuffles.
   F.oddsMult = [9,9,9,9,9,9,9];
   const flat = F.colorOdds();
-  for (let i = 0; i < 7; i++) ochk('uniform boost is a no-op, slot ' + i, flat[i], F.BASE_ODDS[i]);
+  const order = (a) => [...a.keys()].sort((x, y) => a[y] - a[x]).join(',');
+  if (order(flat) !== order(F.BASE_ODDS))
+    oddsFails.push({case: 'a uniform boost keeps the ranking',
+                    got: order(flat), want: order(F.BASE_ODDS)});
+  const spread = (a) => Math.max(...a) / Math.min(...a);
+  ochk('and flattens rather than sharpens', spread(flat) < spread(F.BASE_ODDS) ? 1 : 0, 1, 0);
+  ochk('a uniform boost still totals 100',
+       Math.abs(flat.reduce((a, b) => a + b, 0) - 100) < 0.01 ? 1 : 0, 1, 0);
   F.oddsMult = [0,0,0,0,0,0,0];
 
   F.oddsMult = [0,0,0,0,0,0,1];                  // the banana relic: one more banana's worth
   p = F.colorOdds();
   ochk('boost: totals 100', p.reduce((a, b) => a + b, 0), 100);
-  ochk('boost: banana 6 -> 12', p[6], 12);
-  // the other six pay for it in proportion: they shared 94, now share 88
-  for (let i = 0; i < 6; i++) ochk('boost: slot ' + i + ' shrinks', p[i], F.BASE_ODDS[i] * 88 / 94);
+  // One step adds ODDS_STEP of WEIGHT and the table is renormalised, so the arithmetic is
+  // base+step over total+step -- not the old "double the share". Derived from the constant
+  // rather than written down, so retuning the step is not a failure.
+  {
+    const tot = F.BASE_ODDS.reduce((a, b) => a + b, 0);
+    ochk('boost: banana takes its new weight',
+         p[6], (F.BASE_ODDS[6] + F.ODDS_STEP) / (tot + F.ODDS_STEP) * 100);
+    // the other six pay for it in proportion: same weight, bigger denominator
+    for (let i = 0; i < 6; i++)
+      ochk('boost: slot ' + i + ' shrinks', p[i], F.BASE_ODDS[i] / (tot + F.ODDS_STEP) * 100);
+    // and the step has to be worth more to the rare fruit than to the common one
+    const gainRare = p[6] - F.BASE_ODDS[6];
+    F.oddsMult = [1,0,0,0,0,0,0];
+    const p0 = F.colorOdds();
+    const gainCommon = p0[0] - F.BASE_ODDS[0];
+    ochk('boost: one step helps the rarest fruit most', gainRare > gainCommon ? 1 : 0, 1, 0);
+    F.oddsMult = [0,0,0,0,0,0,1];
+    p = F.colorOdds();
+  }
 
   F.oddsMult = [0,0,0,0,0,0,0];
   F.mode = 'arcade'; F.score = 0;
