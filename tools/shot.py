@@ -21,6 +21,10 @@ SCREENS = {
   # full-screen overlay, so only a whole-page shot can show them
   # a 10+ clear, caught with the slabs in the air. The animation clock does not run under
   # virtual time, so it is driven by hand to the moment worth looking at.
+  # the arcade HUD at its widest: Lv capped so MAX shows, three digits of touches and a purse.
+  # Shot at SHOT_W=360 this is the phone report that started the chip-row fix.
+  'chips': ("D.getElementById('btn-arcade').click();"
+            " F.score=63992; F.best=63992; F.coins=36; F.touchCount=103; F.updateHUD();"),
   # The empty plate mid-flourish. Two things fight the shutter here: the effect is over long
   # before the budget expires, and the game's own loop keeps repainting the canvas, so a frame
   # drawn by hand never survives to the capture. So the frame is drawn, frozen with toDataURL

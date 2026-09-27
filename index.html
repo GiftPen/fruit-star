@@ -106,11 +106,8 @@
   body.wide .rail #stats:not(.hidden) {
     display: flex; flex-wrap: wrap; justify-content: center; align-content: center;
     gap: 8px; width: 100%; padding: 0; }
-  /* every chip the same height and on the same baseline. The ➕ chip is a <button> and picks
-     up the global `button { margin-top: 8px }`, which is what left it sitting 4px below its
-     neighbours -- the same trap as the purse in the rush rail. */
-  body.wide .rail #stats > .chip { height: 30px; margin: 0; display: inline-flex;
-    align-items: center; box-sizing: border-box; flex: 0 0 auto; }
+  body.wide .rail .sbar { padding: 7px 2px; }
+  body.wide .rail .sb-val { font-size: 17px; }
   body.wide .rail #rush { width: 100%; }
   body.wide .rail #rush .rb-row { flex-wrap: wrap; justify-content: center; gap: 8px; }
   /* In the rail the goal cell is not competing with anything, so the flex:1 1 0 + overflow
@@ -243,6 +240,12 @@
   /* Insets go on BODY ONLY. Putting them on html as well applied the notch twice, which on an
      iPhone 14 Pro is 118px of padding where 59 was wanted. env() is 0 where there is no notch. */
   body {
+    /* html is a flex column with align-items:center, which makes BODY shrink to fit its
+       contents on the cross axis -- so the page was as wide as its widest text and no wider.
+       Measured at 320px: body was 296px with a score of 0 and 320px at ten digits, and every
+       box inside it, the status bar and the board included, resized as the score counted up.
+       That is the "숫자 커지면 꿈틀거린다" report at its source. Fill the axis instead. */
+    align-self: stretch;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
@@ -274,17 +277,20 @@
     width: 100%; max-width: 520px; padding: 14px 18px 6px;
     /* equal 1fr side columns keep the center (score) truly centered no matter how wide
        the preview grows (future "예지" relic can add more preview slots) */
-    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+    display: grid; grid-template-columns: 1fr minmax(0, auto) 1fr; align-items: center; gap: 12px;
   }
   /* exactly one of .score-box / .rush-box is in the #top grid at a time -- display:none
      keeps the hidden one out of the flow, or it would claim a column and wrap the preview */
-  .score-box, .rush-box { display: flex; flex-direction: column; }
+  .score-box, .rush-box { display: flex; flex-direction: column; min-width: 0; }
+  .score-box .score-val, .score-box .best-line { max-width: 100%; overflow: hidden;
+    white-space: nowrap; }
   .score-box.hidden, .rush-box.hidden { display: none; }
   .score-box.center, .rush-box.center { justify-self: center; align-items: center; text-align: center; }
   .score-label { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
-  .score-val { font-size: 34px; font-weight: 700; line-height: 1; }
+  .score-val { font-size: 34px; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums; }
   .best-line { font-size: 12px; color: var(--muted); margin-top: 4px; letter-spacing: .5px; }
-  .best-line b { color: var(--text); font-weight: 700; }
+  .best-line b { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
   #next-wrap { justify-self: end; display: flex; align-items: center; justify-content: center; }
   /* the plate the preview sits on. Split out of #next-wrap so the NEXT label can live
      outside it rather than inside the same rounded box. */
@@ -392,10 +398,48 @@
   #rb-mid { margin-left: auto; flex: none; }
   #rb-left { flex: 1 1 auto; min-width: 0; }
   /* the 확률 button lives on a chip row in both modes, so it is chip-sized in both */
-  body:not(.rush-chrome) #stats { flex-wrap: wrap; row-gap: 6px; }
+  /* ONE bar of four fixed cells, not four pills that size themselves to their text.
+     Four pills meant every extra digit re-laid the whole row: the purse jumped a chip's
+     width when coins passed 999, the strip wrapped at 372px so it was two lines on every
+     phone under 412, and the widths were language-dependent on top of that. A cell that is
+     flex:1 1 0 with overflow:hidden cannot be moved by what is written in it, and a bar that
+     is one box cannot wrap. The band in 스타 러시 was rebuilt this way for the same reason. */
+  .sbar { width: 100%; display: flex; align-items: stretch;
+    background: var(--chip); border: 1px solid var(--chip-edge); border-radius: 14px;
+    padding: 5px 2px; }
+  .sb-cell { flex: 1 1 0; min-width: 0; overflow: hidden; padding: 0 2px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; background: none; border: 0; margin: 0; box-shadow: none;
+    font-family: inherit; color: var(--ink); }
+  /* tabular figures: without them a 1 is narrower than a 0 and the number shuffles inside
+     its own cell as it counts, which reads as a wobble even though nothing has moved */
+  .sb-val { font-size: 15px; font-weight: 800; line-height: 1; white-space: nowrap;
+    font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 3px; }
+  .sb-val b { font-weight: 800; }
+  .sb-lab { font-size: 10px; color: var(--muted); letter-spacing: .3px; white-space: nowrap;
+    line-height: 12px; height: 12px; max-width: 100%; overflow: hidden; }
+  .sb-div { width: 1px; align-self: center; height: 26px; background: var(--slot-edge); }
+  .sb-max { font-style: normal; font-size: 9px; color: var(--gold); letter-spacing: .5px; }
+  .sb-max.hidden { display: none; }
+  .sb-cell.coin .sb-val, .sb-cell.coin b { color: var(--gold-b); }
+  .sb-btn { cursor: pointer; border-radius: 10px; }
+  .sb-btn.on { box-shadow: 0 0 0 2px var(--gold) inset; }
+  .sb-cell.bump { animation: coinBump .22s ease-out; }
   /* one height for everything on the chip row: the coin carries a border and measured 2px
      shorter than its neighbours */
-  #stats .chip { height: 28px; display: inline-flex; align-items: center; padding: 0 10px; }
+  /* A 320px phone has 284px of content width once the row's own padding is taken, and four
+     chips at their full size want 306. Rather than drop a chip or abbreviate a label -- the
+     row already says the least it can -- the row scales. This is the knob to reach for when
+     a chip is added: everything on the strip shrinks together and stays one line. */
+  /* #top is `1fr auto 1fr`, so its narrowest is padding + left + gap + score + gap + preview.
+     Measured at 320px that is 36 + 98 + 12 + 111 + 12 + 99 = 368, and a page that cannot be
+     narrower than 368 does not clip one chip -- it clips the whole UI, board included, 24px
+     off each side. So the top row shrinks here too, and by the same trick 스타 러시 already
+     uses: 확률 keeps its fruit and drops its word, and the preview gets smaller. */
+  @media (max-width: 440px) {
+    #stats { padding-left: 10px; padding-right: 10px; }
+    .sb-val { font-size: 14px; }
+  }
   body.rush-chrome #rush-bar .chip { height: 28px; display: inline-flex; align-items: center;
     font-size: 13px; padding: 0 10px; }
   /* the preview stands beside 남은 터치, at the band's height */
@@ -875,7 +919,22 @@
   /* the word is the point of this button, so it gets room for it rather than wrapping to
      two characters in a 42px square */
   #info-btn { margin: 0; width: auto; min-width: 42px; padding: 0 12px;
-    font-size: 14px; font-weight: 800; white-space: nowrap; }
+    font-size: 14px; font-weight: 800; white-space: nowrap;
+    /* its own row layout. This used to come from `#stats #info-btn`, so the button only
+       looked right while it lived on the chip strip: moved back up beside 일시정지 it fell
+       to display:block and stacked its fruit above its word at every width. */
+    display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+  /* Narrow phones: 320 has 320px for padding + left + gap + score + gap + preview, and the
+     full-size top row needs 368 -- so the whole UI, board included, hung 24px off each side.
+     Everything in the row gives a little. Placed after the base rules on purpose: a media
+     query does not outrank a later rule of equal specificity. */
+  @media (max-width: 440px) {
+    #top { padding-left: 8px; padding-right: 8px; gap: 6px; }
+    #info-btn { min-width: 40px; padding: 0 8px; font-size: 13px; }
+    #np-now  { width: 40px; height: 40px; }
+    #np-next { width: 26px; height: 26px; }
+    .score-val { font-size: 30px; }
+  }
   #pause { position: fixed; inset: 0; z-index: 11; background: rgba(10,11,18,.85); backdrop-filter: blur(6px);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
   #pause.hidden { display: none; }
@@ -1273,10 +1332,27 @@
   </div>
 
   <div id="stats">
-    <span class="chip lvl" id="st-lvl-chip">Lv.<b id="st-level">1</b><span id="st-max" class="lvmax hidden">MAX</span></span>
-    <span class="chip" id="st-touch-chip"><span data-i18n="touchChip">👆 터치</span> <b id="st-touch">0</b></span>
-    <button class="chip chip-btn" id="st-spawn-chip"><span data-i18n="spawnChip">➕ 매턴</span> <b id="st-spawn">1</b></button>
-    <span class="chip coin" id="st-coin"><i class="cn"></i> <b id="st-coin-v">0</b></span>
+    <div class="sbar">
+      <div class="sb-cell" id="st-lvl-chip">
+        <span class="sb-lab">Lv</span>
+        <span class="sb-val"><b id="st-level">1</b><i id="st-max" class="sb-max hidden">MAX</i></span>
+      </div>
+      <i class="sb-div"></i>
+      <div class="sb-cell" id="st-touch-chip">
+        <span class="sb-lab" data-i18n="touchChip">터치</span>
+        <span class="sb-val"><b id="st-touch">0</b></span>
+      </div>
+      <i class="sb-div"></i>
+      <button class="sb-cell sb-btn" id="st-spawn-chip">
+        <span class="sb-lab" data-i18n="spawnChip">매턴</span>
+        <span class="sb-val">➕<b id="st-spawn">1</b></span>
+      </button>
+      <i class="sb-div"></i>
+      <div class="sb-cell coin" id="st-coin">
+        <span class="sb-lab" data-i18n="coinLab">코인</span>
+        <span class="sb-val"><i class="cn"></i><b id="st-coin-v">0</b></span>
+      </div>
+    </div>
   </div>
   <div id="rush" class="hidden">
     <div class="rb-row">
@@ -3218,7 +3294,7 @@
       tipItem_star: (p, sc) => `<b>별</b> · ${p}코인<br>놓고 탭하면 같은 색을 별자리로 이어 정리하고 코인을 떨굽니다. 발동 시 +${sc}점.`, tabRelics: "유물", tabTraits: "특성",
       traitPick: "특성 선택", doubleChip: "2배", myRelics: "내 유물", prep: "준비",
       best: "최고", stage: "스테이지", score: "점수", scoreBest: (a, b) => `점수 ${a} · 최고 ${b}`,
-      touchChip: "👆 터치", spawnChip: "➕ 매턴", allClear: "올 클리어!",
+      touchChip: "터치", spawnChip: "매턴", coinLab: "코인", allClear: "올 클리어!",
       nextLabel: "NEXT",
       spawnMenuTitle: "매턴 과일",
       spawnBase: "기본", spawnFromRelic: "유물·특성", spawnFromBuy: "구매", spawnTotal: "합계",
@@ -3631,7 +3707,7 @@
       tipItem_star: (p, sc) => `<b>Star</b> · ${p} coins<br>Place it and tap to link one colour into a constellation and drop coins. +${sc} when it fires.`, tabRelics: "Relics", tabTraits: "Traits",
       traitPick: "Pick a trait", doubleChip: "×2", myRelics: "My relics", prep: "",
       best: "Best", stage: "Stage", score: "Score", scoreBest: (a, b) => `Score ${a} · Best ${b}`,
-      touchChip: "👆 Touches", spawnChip: "➕ Per turn", allClear: "ALL CLEAR!",
+      touchChip: "Touches", spawnChip: "Per turn", coinLab: "Coins", allClear: "ALL CLEAR!",
       nextLabel: "NEXT",
       spawnMenuTitle: "Fruit per turn",
       spawnBase: "Base", spawnFromRelic: "Relics & traits", spawnFromBuy: "Bought", spawnTotal: "Total",
@@ -4043,7 +4119,7 @@
       traitPick: "特性を選ぶ", doubleChip: "×2", myRelics: "所持レリック", prep: "準備",
       best: "ベスト", stage: "ステージ", score: "スコア",
       scoreBest: (a, b) => `スコア ${a} · ベスト ${b}`,
-      touchChip: "👆 タッチ", spawnChip: "➕ 毎ターン", allClear: "オールクリア!",
+      touchChip: "タッチ", spawnChip: "毎ターン", coinLab: "コイン", allClear: "オールクリア!",
       nextLabel: "NEXT",
       spawnMenuTitle: "毎ターンのフルーツ",
       spawnBase: "基本", spawnFromRelic: "遺物・特性", spawnFromBuy: "購入", spawnTotal: "合計",
@@ -4455,7 +4531,7 @@
       traitPick: "选择特性", doubleChip: "×2", myRelics: "我的遗物", prep: "准备",
       best: "最高", stage: "关卡", score: "分数",
       scoreBest: (a, b) => `分数 ${a} · 最高 ${b}`,
-      touchChip: "👆 触摸", spawnChip: "➕ 每回合", allClear: "全部清除!",
+      touchChip: "触摸", spawnChip: "每回合", coinLab: "金币", allClear: "全部清除!",
       nextLabel: "NEXT",
       spawnMenuTitle: "每回合水果",
       spawnBase: "基础", spawnFromRelic: "遗物·特性", spawnFromBuy: "购买", spawnTotal: "合计",
@@ -5806,8 +5882,11 @@
       // and the button goes back under the board, where the thumb is
       if (nextBtn.parentElement !== document.body) document.body.appendChild(nextBtn);
     } else {
-      const stats = $sh("stats");
-      if (stats && odds.parentElement !== stats) stats.insertBefore(odds, stats.firstChild);
+      // 확률 stays up top with 일시정지, where the buttons live. It used to be pushed down
+      // into the chip strip, and it cost that strip 74px of its 372 -- which is why five
+      // chips needed 412px to sit on one line and wrapped on every common phone, this one
+      // included. The top-left has nothing but the pause button in arcade; it has the room.
+      if (odds.parentElement !== left) left.insertBefore(odds, left.firstChild.nextSibling);
       for (const id of ["relic-btn", "trait-btn"]) $sh(id).classList.add("hidden");
       if (!wideOn && prev.parentElement !== top) top.appendChild(prev);
       const chips = document.querySelector("#rush .rb-chips"), rushEl = $sh("rush");
@@ -10376,6 +10455,9 @@
       get splats() { return splats; }, get shock() { return shock; },
       get wash() { return wash; }, get hitstop() { return hitstop; },
       get allClear() { return allClear; }, set allClear(v) { allClear = v; },
+      // the purse counts UP to its value, so its chip is narrow for the first moments
+      // after coins is set -- a width test that does not settle it measures one digit
+      get coinsShown() { return coinsShown; }, set coinsShown(v) { coinsShown = v; },
       ALLCLEAR_MS, ALLCLEAR_HOLD, ALLCLEAR_MIN,
       resetFrameClock: () => { frameLast = -1; },
       get particles()   { return particles; },
