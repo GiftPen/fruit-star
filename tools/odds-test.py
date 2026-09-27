@@ -24,10 +24,10 @@ window.addEventListener('load', () => setTimeout(() => {
                                     fails.push({ case: c, got, want }); };
   F.start('rush');
   const n = F.activeColors();
-  const at = (i, k) => { F.oddsMult = new Array(7).fill(0); F.oddsMult[i] = k;
+  const at = (i, k) => { F.oddsMult = new Array(F.COLORS.length).fill(0); F.oddsMult[i] = k;
                          return F.colorOdds()[i]; };
 
-  chk('every colour is in play for this check', n, 7);
+  chk('every colour is in play for this check', n, F.RUSH_COLORS);
   chk('the step is a real number', F.ODDS_STEP > 0, true);
 
   const curves = {};
@@ -73,14 +73,14 @@ window.addEventListener('load', () => setTimeout(() => {
       true);
 
   // 5) it stays a probability distribution, and the floor still holds
-  F.oddsMult = new Array(7).fill(0); F.oddsMult[0] = 8;
+  F.oddsMult = new Array(F.COLORS.length).fill(0); F.oddsMult[0] = 8;
   const o = F.colorOdds();
   const sum = o.reduce((a, b) => a + b, 0);
   chk('the odds still sum to 100', Math.abs(sum - 100) < 0.01, true);
   chk('nothing falls under the floor', o.filter(v => v < F.MIN_ODDS - 0.01), []);
 
   // 6) no boost at all leaves the base odds untouched
-  F.oddsMult = new Array(7).fill(0);
+  F.oddsMult = new Array(F.COLORS.length).fill(0);
   const plain = F.colorOdds().map(v => +v.toFixed(2));
   chk('with no boosts the base odds are unchanged',
       plain, F.BASE_ODDS.map(v => +v.toFixed(2)));

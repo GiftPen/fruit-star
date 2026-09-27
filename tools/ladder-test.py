@@ -79,14 +79,13 @@ window.addEventListener('load', () => setTimeout(async () => {
   chk('Lv.2 spawns a cracker every 5 touches', slow, [5, 10]);
   chk('the ladder actually changed the pace', fast.length > slow.length, true);
 
-  // The fourth cycle has no colour left to give, so its rung pays in a SECOND cracker per
-  // drop. The turn loop calls spawnCracker in a loop now, and a loop that runs once looks
-  // exactly like the old single call -- so count what lands, not what the rule returns.
-  const pair = await paceAt(F.CRACKER_PAIR_LEVEL, 6);
-  chk('the pair rung drops two at a time', pair.map(x => x.by), [2, 2, 2]);
-  chk('...on the tightened 2-touch pace', touchesOf(pair), [2, 4, 6]);
-  const single = await paceAt(F.CRACKER_PAIR_LEVEL - 1, 6);
-  chk('the level below still drops one', single.map(x => x.by), [1, 1, 1]);
+  // The fourth cycle's colour rung paid in a second cracker while there were only seven
+  // fruit. 멜론 is the eighth, so that rung is a colour rung again and nothing comes in pairs
+  // -- counted at the board, because the turn loop still calls spawnCracker in a loop and a
+  // loop that runs twice looks exactly like one that runs once until you count what lands.
+  const top = await paceAt(F.MAX_LEVEL, 6);
+  chk('even the last level drops one at a time', top.map(x => x.by), [1, 1, 1]);
+  chk('...on the tightest pace the ladder reaches', touchesOf(top), [2, 4, 6]);
 
   // ---- crossing a rung has to SAY what it did ----
   // A level that changes something invisible is a number going up for no reason. Every rung

@@ -1575,17 +1575,29 @@
   let ROWS = 8;
   const ROWS_BASE = 8, ROWS_MAX = 12;   // 개간 relics grow the board downward, 8 -> 12
   // full palette (7). Only the first activeColors() are in play, growing with score.
-  const COLORS = ["#ff5a7a", "#f45b00", "#43d17a", "#ffc93c", "#a66cff", "#ffab8f", "#00b4d8"];
+  //                체리       오렌지      키위       레몬       포도       복숭아      바나나      멜론
+  const COLORS = ["#ff5a7a", "#f45b00", "#43d17a", "#ffc93c", "#a66cff", "#ffab8f", "#00b4d8", "#96bc68"];
   // per-fruit base points (shared with Star Rush). slot order: 0체리 1오렌지 2키위 3레몬 4포도 5복숭아 6바나나
   // cherry/lemon=1, orange/kiwi=2, grape/peach=3, banana=6 (the rarest at 6% spawn, and
   // the one build that dies of a full board -- it is paid for the risk in base points)
   // x10 scale on purpose: it lets every stacking relic move a fruit by a WHOLE number.
   // At the old 1..5 scale a stack had to read "+0.05", which nobody can follow on a board.
-  const FRUIT_POINTS = [10, 20, 20, 10, 30, 30, 60];
+  const FRUIT_POINTS = [10, 20, 20, 10, 30, 30, 60, 30];
+  // One array per fruit, always exactly as long as COLORS. Every one of these was written
+  // out as seven literals, which is a silent `undefined` the day an eighth fruit arrives.
+  const perFruit = v => new Array(COLORS.length).fill(v);
   // spawn odds in PERCENT (doc 3-1): rarer fruit is worth more. Arcade stays uniform.
+  // RUSH's table, so it is RUSH_COLORS long -- not COLORS. Arcade spawns uniformly and
+  // never reads it, and rush ships with seven fruit. Padding it to eight was worse both
+  // ways: a 0 is read as "rarest" by anything looking for the minimum, and a real weight
+  // changes the sum this table is normalised against, shifting every other fruit's odds.
   const BASE_ODDS    = [20, 15, 15, 20, 12, 12, 6];
   const BASE_COLORS = 4;       // colors in play at score 0
-  const MAX_COLORS = 7;        // cap
+  const MAX_COLORS = 8;        // arcade cap -- the eighth fruit is 멜론, reached at Lv.12
+  // Rush ships with seven. Its colour count used to BE the cap, so raising the cap for
+  // arcade would have handed rush an eighth fruit on turn one -- a balance change nobody
+  // asked for, in the mode that is closest to done.
+  const RUSH_COLORS = 7;
   const START_BUDS = 10;
   const SPAWN_BASE = 1;        // buds spawned per move at score 0
   // Arcade's curve stops here. Rush does NOT read it: rush spawns a flat base plus whatever
@@ -1745,12 +1757,6 @@
   // below them. Crackers take the slot back by arriving OFTENER -- 5 touches, then 4, then 3
   // -- which is pressure without anything to grind down.
   const CRACKER_MIN = 2;         // ...and no tighter than this
-  // The fourth cycle's COLOUR rung has nothing left to give -- there are seven fruit and
-  // by then all seven are in play -- so it gives a second cracker per drop instead. Two at
-  // a time, not two hits: hit points were exactly what made crackers a chore to grind down.
-  // Up here with the other ladder constants, not down with the coin ones: computeMaxLevel()
-  // runs at module init and calls every knob, so a knob may only read what is already bound.
-  const CRACKER_PAIR_LEVEL = 12;
   const CRACKER_SCORE = 100;   // what breaking one is worth, before relics
   // 크래커 왕's growth, kept apart from the base: how much a cracker is worth and how fast
   // the legendary grows it are two decisions, and tying them together hides one of them.
@@ -2097,7 +2103,27 @@
   </g>
 </svg>`;
   // PEACH_SVG is benched (not in the active 7) — see chat: peach's pink clashes with cherry's red
-  const JUICY_FRUIT = [CHERRY_SVG, ORANGE_SVG, KIWI_SVG, LEMON_SVG, GRAPE_SVG, PEAR_SVG, BANANA_SVG]; // 2.5D set (final)
+  // Only ever seen if fruit7.png fails to load, so it is short on purpose -- a netted ball
+  // and a stem nub, which is the least that still reads as a melon rather than a green ball.
+  const MELON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <radialGradient id="melonSphere" cx="34%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#cfe39a" /><stop offset="35%" stop-color="#a8c96f" /><stop offset="75%" stop-color="#7fa451" /><stop offset="100%" stop-color="#4d6a30" />
+    </radialGradient>
+  </defs>
+  <path d="M48 26 C44 18 36 14 28 16" fill="none" stroke="#3f6b2f" stroke-width="5" stroke-linecap="round"/>
+  <rect x="45" y="22" width="10" height="9" rx="3" fill="#4f7d35" stroke="#1c2233" stroke-width="3"/>
+  <circle cx="50" cy="57" r="34" fill="url(#melonSphere)" stroke="#1c2233" stroke-width="5"/>
+  <g fill="none" stroke="#e6edb6" stroke-width="2.4" stroke-linecap="round" opacity="0.9">
+    <path d="M20 48 C34 44 52 52 66 44 C74 40 78 40 81 43"/>
+    <path d="M18 62 C32 58 46 66 62 60 C72 56 78 58 82 62"/>
+    <path d="M24 76 C36 72 50 78 64 74"/>
+    <path d="M36 25 C34 40 40 56 36 88"/>
+    <path d="M60 26 C64 42 58 58 63 87"/>
+  </g>
+</svg>`;
+
+  const JUICY_FRUIT = [CHERRY_SVG, ORANGE_SVG, KIWI_SVG, LEMON_SVG, GRAPE_SVG, PEAR_SVG, BANANA_SVG, MELON_SVG]; // 2.5D set (final)
   let FRUIT_SVG = JUICY_FRUIT;   // active fruit art set
 
   // ---- item art (SVG). the bird (참새) faces left by default ----
@@ -2517,12 +2543,12 @@
     STREAK_STEP = STREAK_STEP_BASE; STREAK_CAP = 2.0;
     traits = []; doubles = 0; armedItem = null;
     coins = 0; coinsShown = 0; coinsSpent = 0; crackerScore = CRACKER_SCORE; clearCoinFly();
-    stageStack = [0, 0, 0, 0, 0, 0, 0];
-    oddsMult = [0, 0, 0, 0, 0, 0, 0];
-    fruitMult = [1, 1, 1, 1, 1, 1, 1];
-    fruitStack = [0, 0, 0, 0, 0, 0, 0];
-    fruitBoost = [1, 1, 1, 1, 1, 1, 1];
-    fruitFlat  = [0, 0, 0, 0, 0, 0, 0];
+    stageStack = perFruit(0);
+    // Derived from COLORS, never written out: an eighth fruit was added and every array
+    // spelled out by hand would have stayed at seven, leaving the new one undefined.
+    oddsMult = perFruit(0); fruitMult = perFruit(1);
+    fruitStack = perFruit(0); fruitBoost = perFruit(1);
+    fruitFlat  = perFruit(0);
     relics = []; relicLife = {};
     layout();                              // ROWS may have changed -> resize the board
   }
@@ -2662,7 +2688,7 @@
       crackerGap: m => Math.max(CRACKER_MIN, CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3)),
       // the one knob that pays the player back for climbing
       coinFruit: m => COIN_FRUIT_CHANCE + COIN_FRUIT_STEP * Math.min(m, MAX_LEVEL - 1),
-      crackerCount: m => (m + 1 >= CRACKER_PAIR_LEVEL ? 2 : 1),
+      crackerCount: () => 1,
     },
     rush: {
       startBuds: RUSH_BUDS,
@@ -2670,7 +2696,7 @@
       touchBudget: true,                                    // a stage is N touches to hit a quota
       quota: rushQuota,
       touches: RUSH_TOUCHES,
-      colors:  () => MAX_COLORS,                            // 7 from the start
+      colors:  () => RUSH_COLORS,                           // 7 from the start; the 8th is arcade-only
       odds:    () => BASE_ODDS,                             // rare fruit = valuable fruit
       spawns:  () => RUSH_SPAWNS,                           // relics raise this, not the score
       crackerOn: () => 0,                                     // crackers arrive via risk relics
@@ -2709,7 +2735,7 @@
     const a = MODES.arcade;
     for (let m = 0; m < 200; m++)
       if (a.colors(m) === MAX_COLORS && a.spawns(m) === SPAWN_MAX && a.crackerOn(m) >= 1
-          && a.crackerGap(m) === CRACKER_MIN && a.crackerCount(m) >= 2)
+          && a.crackerGap(m) === CRACKER_MIN)
         return m + 1;
     return 10;
   }
@@ -2724,14 +2750,14 @@
   // exact percentage belongs in the fruit table, not in every relic's description.
   // ACCUMULATED, not derived: these grow through play and must survive a recompute, unlike
   // fruitMult which applyRelics() rebuilds from the owned relics every time.
-  let fruitStack = [0, 0, 0, 0, 0, 0, 0];  // base points earned by popping that fruit
-  let fruitBoost = [1, 1, 1, 1, 1, 1, 1];  // "double its current value" effects, banked
+  let fruitStack = perFruit(0);  // base points earned by popping that fruit
+  let fruitBoost = perFruit(1);  // "double its current value" effects, banked
   // A DERIVED multiplicative channel, wiped and rebuilt by applyRelics like every other
   // relic effect. fruitBoost cannot be used for this: it is accumulated (a trait banks a
   // doubling into it) and applyRelics does not reset it, so a relic multiplying it would
   // multiply again on every recompute -- once per later purchase.
-  let fruitCrown = [1, 1, 1, 1, 1, 1, 1];
-  let fruitFlat  = [0, 0, 0, 0, 0, 0, 0];  // flat points from relics -- derived, so selling
+  let fruitCrown = perFruit(1);
+  let fruitFlat  = perFruit(0);  // flat points from relics -- derived, so selling
                                            // one (or letting it expire) takes them back
   let relics = [];                         // ids of the relics owned this run
   let relicLife = {};                      // id -> charges left, for the ones that expire
@@ -2758,11 +2784,11 @@
   let grapeBulk = 0;          // a grape cluster counts this much bigger
   let bananaSpread = 0;       // a popped banana converts this many neighbours
   let cherryPile = 0;         // +N per cherry popped, this stage
-  let stageStack = [0, 0, 0, 0, 0, 0, 0];   // cherry's running total, reset every stage
+  let stageStack = perFruit(0);   // cherry's running total, reset every stage
   // "popping it makes it worth more, for good". Relics do this with an onFruitPop hook; a
   // trait is data, so it needs a channel instead. Derived, while what it feeds (fruitStack)
   // is accumulated -- the rule is rebuilt each recompute, the pile it makes is not.
-  let stackOnPop = [0, 0, 0, 0, 0, 0, 0];
+  let stackOnPop = perFruit(0);
   let coinFruitMult = 1;      // a coin-carrying fruit is worth this much more
   let crackerScore = CRACKER_SCORE;   // ACCUMULATED: the legendary doubles it as you break
   let crackerBonus = 0;        // DERIVED: flat relic bonus, rebuilt by applyRelics
@@ -2861,7 +2887,7 @@
   // over the cap, the extras are carried but inert (doc 6): losing a slot must not destroy
   // a relic, and which ones go quiet is then a decision rather than a deletion
   const activeRelics = () => relics.slice(0, relicCap());
-  let oddsMult = [0, 0, 0, 0, 0, 0, 0];         // extra helpings of each fruit's base share
+  let oddsMult = perFruit(0);                   // extra helpings of each fruit's base share
   // "1만큼 더 등장" means exactly what it says: banana goes 6% -> 12%, and the rest give up
   // the difference in proportion. That part was right. What was wrong is where the difference
   // came FROM: unboosted fruit were driven to exactly 0% once the boosts reached 100, and a
@@ -2933,7 +2959,7 @@
   // half a run's reach, and this is the only lever that gives it back without leaving the
   // grid. Measured over 6 bot runs the median stage came back to where it was.
   const CHAIN_STEP = 0.2;                  // chain-size bonus per extra cleared cell
-  let fruitMult = [1, 1, 1, 1, 1, 1, 1];   // per-colour multiplier; all 1.0 today
+  let fruitMult = perFruit(1);   // per-colour multiplier; all 1.0 today
   function chainBonus(cleared) {
     return gridMult(1 + Math.max(0, cleared - 1) * (CHAIN_STEP + chainStep));
   }
@@ -3071,10 +3097,10 @@
   //   2. tools/i18n-test.py fails on any key present in ko and missing elsewhere
   const LANGS = { ko: "한국어", en: "English", ja: "日本語", zh: "简体中文" };
 
-  const FRUIT_KO = ["체리", "오렌지", "키위", "레몬", "포도", "복숭아", "바나나"];
-  const FRUIT_EN = ["Cherry", "Orange", "Kiwi", "Lemon", "Grape", "Peach", "Banana"];
-  const FRUIT_JA = ["さくらんぼ", "オレンジ", "キウイ", "レモン", "ぶどう", "もも", "バナナ"];
-  const FRUIT_ZH = ["樱桃", "橙子", "猕猴桃", "柠檬", "葡萄", "桃子", "香蕉"];
+  const FRUIT_KO = ["체리", "오렌지", "키위", "레몬", "포도", "복숭아", "바나나", "멜론"];
+  const FRUIT_EN = ["Cherry", "Orange", "Kiwi", "Lemon", "Grape", "Peach", "Banana", "Melon"];
+  const FRUIT_JA = ["さくらんぼ", "オレンジ", "キウイ", "レモン", "ぶどう", "もも", "バナナ", "メロン"];
+  const FRUIT_ZH = ["樱桃", "橙子", "猕猴桃", "柠檬", "葡萄", "桃子", "香蕉", "甜瓜"];
   const listJa = a => a.join("・");
   const listZh = a => a.join("和");
   const listKo = a => a.join("·");
@@ -5602,11 +5628,11 @@
   const itemNeed = t => Math.max(ITEM_NEED_MIN, t - itemEase);
 
   function applyRelics() {
-    oddsMult = [0, 0, 0, 0, 0, 0, 0];
-    fruitMult = [1, 1, 1, 1, 1, 1, 1];
-    fruitFlat = [0, 0, 0, 0, 0, 0, 0];
-    fruitCrown = [1, 1, 1, 1, 1, 1, 1];
-    stackOnPop = [0, 0, 0, 0, 0, 0, 0];
+    oddsMult = perFruit(0);
+    fruitMult = perFruit(1);
+    fruitFlat = perFruit(0);
+    fruitCrown = perFruit(1);
+    stackOnPop = perFruit(0);
     touchBonus = 0; spawnBonus = 0; crackerChance = 0; offerBonus = 0;
     chainStep = 0; coinFruitBonus = 0; starCoinMult = 1; payoutMult = 1;
     coinFlat = 0; coinToScore = 0; coinFlatPer = COIN_FLAT_PER; interestPer = 0; interestPct = 0; interestCap = INTEREST_CAP;
@@ -6282,7 +6308,7 @@
     // Fruit pops sit on a pentatonic scale ordered by what the fruit is worth, cheapest
     // lowest. Bursts already fire staggered by distance, so a big cluster plays itself as a
     // rising arpeggio -- the bigger the cluster, the grander it sounds, for free.
-    const PENTA = [0, 2, 4, 7, 9, 12, 16];
+    const PENTA = [0, 2, 4, 7, 9, 12, 16, 19];   // eight fruit, eight rungs
     // Its own scale, NOT PENTA. PENTA spans 16 semitones, so wrapping it an octave up landed
     // LOWER than the rung before -- measured: streak 6 was 1663Hz and streak 7 was 1320Hz, so
     // the run audibly fell over just as it got going. Five rungs spanning exactly an octave
@@ -6291,7 +6317,7 @@
     const COMBO_CHORD = 3;      // streak at which the accent gains a fifth
     const COMBO_FLOURISH = 6;   // ...and a rising top note
     const COMBO_OCT_CAP = 1;    // stop climbing before it shrieks (tops out ~2.2kHz)
-    const FRUIT_NOTE = [0, 2, 3, 1, 4, 5, 6];   // fruit index -> rung, by FRUIT_POINTS order
+    const FRUIT_NOTE = [0, 2, 3, 1, 4, 5, 7, 6];   // fruit index -> rung, by FRUIT_POINTS order
     const hz = semi => 330 * Math.pow(2, semi / 12);
     // `step` is how far into the cluster's outward wave this pop is. Every cell used to fire
     // the SAME note, so a 15-fruit clear was one note played fifteen times -- mud, and no
@@ -7562,7 +7588,7 @@
         if (R.apply) {
           const o0 = oddsMult.slice(), m0 = fruitMult.slice(), f0 = fruitFlat.slice(), b0 = fruitCrown.slice();
           try { R.apply(); } catch (e) {}
-          for (let i = 0; i < 7; i++)
+          for (let i = 0; i < COLORS.length; i++)
             if (oddsMult[i] !== o0[i] || fruitMult[i] !== m0[i] || fruitFlat[i] !== f0[i]
                 || fruitCrown[i] !== b0[i]) fr.add(i);
           oddsMult = o0; fruitMult = m0; fruitFlat = f0; fruitCrown = b0;
@@ -8186,7 +8212,7 @@
     addCoins(Math.round(COIN_PAYOUT(stage) * payoutMult), (ROWS - 1) / 2, (COLS - 1) / 2);
     stage++;
     stageScore = 0;
-    stageStack = [0, 0, 0, 0, 0, 0, 0];   // 체리 더미 is a stage's worth, not a run's
+    stageStack = perFruit(0);   // 체리 더미 is a stage's worth, not a run's
     touchesLeft = stageTouches();
     flash = Math.max(flash, 0.5); addShake(7);
     // interest has to be SEEN or it is not a strategy, just a number that moved
@@ -8995,8 +9021,9 @@
   // 1 = as drawn; area goes with the SQUARE of this. Measured on screen (each fruit alone in
   // a cell, diffed against the same cell empty) the seven covered 30%-52% of their cell --
   // a 1.7x spread, which is why the kiwi read as fat and the cherry as slight. These bring
-  // them all to about 40%.        체리    오렌지  키위   레몬   포도   복숭아  바나나
-  const FRUIT_SCALE =             [1.15,  1.20,  0.88,  0.97,  1.05,  1.12,  1.00];
+  // them all to about 40%. 멜론 measured 46.5% as drawn, so sqrt(40/46.5).
+  //                              체리    오렌지  키위   레몬   포도   복숭아  바나나  멜론
+  const FRUIT_SCALE =             [1.15,  1.20,  0.88,  0.97,  1.05,  1.12,  1.00,  0.93];
   const fruitScaleOf = k => FRUIT_SCALE[k] || 1;
 
   function fruitVisual(kind, cx, cy, S0, grounded = false) {
@@ -10661,7 +10688,8 @@
       scorePop, fruitScore, chainBonus, streakMult, pickColor, addScore,
       resetRun, serializeRun, restoreRun, FRUIT_POINTS, COLS,
       MODES, activeColors, spawnCount, crackerLevel, computeMaxLevel,
-      crackerGap, crackerCount, LEVEL_AT, CRACKER_EVERY, CRACKER_MIN, CRACKER_PAIR_LEVEL,
+      crackerGap, crackerCount, LEVEL_AT, CRACKER_EVERY, CRACKER_MIN, MAX_COLORS, RUSH_COLORS,
+      get FRUIT_SVG() { return FRUIT_SVG; },
       RECLAIM_MAX, buyInstant, get rowsBought() { return rowsBought; }, itemAffordable,
       levelGain, level, milestone, LEVELUP_MS,
       get levelFx() { return levelFx; }, set levelFx(v) { levelFx = v; },

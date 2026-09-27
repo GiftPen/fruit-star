@@ -115,7 +115,7 @@ window.addEventListener('load', () => setTimeout(() => {
   // ---- mode rules ----
   // arcade knobs must still match the formulas they were hardcoded as before the table
   const modeFails = [];
-  const refColors  = m => Math.min(7, 4 + Math.floor((m + 1) / 3));
+  const refColors  = m => Math.min(8, 4 + Math.floor((m + 1) / 3));
   const refSpawns  = m => Math.min(5, 1 + Math.floor(m / 3));
   // one hit, always: the obstacle is a cracker now, not a wall to grind down
   const refCrackerOn = m => (m >= 1 ? 1 : 0);
@@ -127,7 +127,9 @@ window.addEventListener('load', () => setTimeout(() => {
   }
   // rush: 7 colours from turn one, flat spawn, no score-driven crackers (design doc 10-4)
   for (let m = 0; m <= 40; m++) {
-    if (R.colors(m)  !== 7) modeFails.push({m, knob:'rush.colors',  got:R.colors(m),  want:7});
+    // rush ships with seven. Its count used to BE the arcade cap, so raising the cap for the
+    // eighth fruit would have handed rush a new colour on turn one.
+    if (R.colors(m) !== F.RUSH_COLORS) modeFails.push({m, knob:'rush.colors', got:R.colors(m), want:F.RUSH_COLORS});
     if (R.spawns(m)  !== F.RUSH_SPAWNS) modeFails.push({m, knob:'rush.spawns', got:R.spawns(m), want:F.RUSH_SPAWNS});
     if (R.crackerOn(m) !== 0) modeFails.push({m, knob:'rush.crackerOn', got:R.crackerOn(m), want:0});
   }
@@ -163,6 +165,35 @@ window.addEventListener('load', () => setTimeout(() => {
       modeFails.push({knob:'LEVEL_AT is staged', got:steps.join(','), want:'more than one step size'});
   }
 
+  // ---- every array indexed by fruit is as long as COLORS ----
+  // The eighth fruit landed in a file where fifteen per-fruit arrays were written out as
+  // seven literals. One left at seven is not an error -- it is an `undefined` that shows up
+  // as 0 or NaN somewhere far away, on the one fruit nobody has played with yet.
+  {
+    const N = F.COLORS.length;
+    // BASE_ODDS is deliberately NOT here: it is rush's table and rush ships with seven fruit,
+    // so it is RUSH_COLORS long. Padding it to eight breaks either way -- a 0 reads as the
+    // rarest fruit, a real weight changes the sum the table is normalised against.
+    const arrays = { FRUIT_POINTS: F.FRUIT_POINTS, FRUIT_SCALE: F.FRUIT_SCALE,
+                     oddsMult: F.oddsMult, fruitMult: F.fruitMult,
+                     fruitFlat: F.fruitFlat, fruitStack: F.fruitStack, fruitBoost: F.fruitBoost,
+                     fruitCrown: F.fruitCrown, stackOnPop: F.stackOnPop, stageStack: F.stageStack };
+    for (const k of Object.keys(arrays))
+      if (!arrays[k] || arrays[k].length !== N)
+        modeFails.push({knob:'per-fruit array', name:k, got:arrays[k] && arrays[k].length, want:N});
+    for (const lg of Object.keys(F.PACKS))
+      if ((F.PACKS[lg]._fruit || []).length !== N)
+        modeFails.push({knob:'fruit names', lang:lg, got:(F.PACKS[lg]._fruit||[]).length, want:N});
+    // the art set is what the loader iterates, so a short one silently never loads the last
+    // fruit's PNG at all -- the failure is an invisible fruit, not an error
+    if (F.FRUIT_SVG.length !== N)
+      modeFails.push({knob:'fruit art set', got:F.FRUIT_SVG.length, want:N});
+    if (F.MAX_COLORS !== N)
+      modeFails.push({knob:'MAX_COLORS matches the palette', got:F.MAX_COLORS, want:N});
+    if (F.BASE_ODDS.length !== F.RUSH_COLORS)
+      modeFails.push({knob:'BASE_ODDS is rush-length', got:F.BASE_ODDS.length, want:F.RUSH_COLORS});
+  }
+
   // ---- the staged cycle has no dead rungs ----
   // The cycle is cracker -> +1 colour -> +1 spawn, repeating. When crackers were flattened to
   // "unlocked, one hit, always" the cracker rung stopped changing anything, so Lv.5 and Lv.8
@@ -185,17 +216,11 @@ window.addEventListener('load', () => setTimeout(() => {
   // rush crackers come from relics, so their pace is the base one, not the arcade ladder
   if (R.crackerGap(30) !== F.CRACKER_EVERY)
     modeFails.push({knob:'rush.crackerGap', got:R.crackerGap(30), want:F.CRACKER_EVERY});
-  // The fourth cycle's colour rung pays in a second cracker, because there is no eighth fruit.
-  // Guard the reason, not just the number: if a colour is ever added, this rung is wrong.
-  if (A.colors(F.CRACKER_PAIR_LEVEL - 1) !== A.colors(F.CRACKER_PAIR_LEVEL - 2))
-    modeFails.push({knob:'pair rung is where colours ran out',
-                    got:'colours still moving at m=' + (F.CRACKER_PAIR_LEVEL - 1), want:'exhausted'});
-  if (A.crackerCount(F.CRACKER_PAIR_LEVEL - 2) !== 1)
-    modeFails.push({knob:'one cracker before the pair rung', got:A.crackerCount(F.CRACKER_PAIR_LEVEL - 2), want:1});
-  if (A.crackerCount(F.CRACKER_PAIR_LEVEL - 1) !== 2)
-    modeFails.push({knob:'two crackers from the pair rung', got:A.crackerCount(F.CRACKER_PAIR_LEVEL - 1), want:2});
-  if (R.crackerCount(30) !== 1)
-    modeFails.push({knob:'rush.crackerCount', got:R.crackerCount(30), want:1});
+  // The fourth cycle's colour rung paid in a second cracker while there was no eighth fruit.
+  // 멜론 is that fruit, so the rung is a colour rung again and nothing drops in pairs.
+  for (let m = 0; m <= 40; m++)
+    if (A.crackerCount(m) !== 1)
+      modeFails.push({m, knob:'crackerCount', got:A.crackerCount(m), want:1});
   // MAX_LEVEL is derived from where every knob caps -- it has to count this one, or adding a
   // rung silently leaves the top level unreachable
   if (F.computeMaxLevel() < 8)
@@ -281,14 +306,18 @@ window.addEventListener('load', () => setTimeout(() => {
   // from what the card says -- "1만큼 더 등장", one more unit -- and it favours the rare fruit,
   // which is the whole reason the formula changed. No single card does it; it takes a boost
   // for all seven. What must still hold is that it flattens rather than shuffles.
-  F.oddsMult = [9,9,9,9,9,9,9];
+  F.oddsMult = new Array(F.COLORS.length).fill(9);
   const flat = F.colorOdds();
+  // Compare against the ACTIVE slice. BASE_ODDS is as long as COLORS now, and 멜론's entry is
+  // 0 because rush stays at seven fruit -- left in, it sorts last and shifts the ranking, and
+  // worse, it makes Math.min zero so the spread check divides by zero and passes on anything.
+  const base = F.BASE_ODDS.slice(0, flat.length);
   const order = (a) => [...a.keys()].sort((x, y) => a[y] - a[x]).join(',');
-  if (order(flat) !== order(F.BASE_ODDS))
+  if (order(flat) !== order(base))
     oddsFails.push({case: 'a uniform boost keeps the ranking',
-                    got: order(flat), want: order(F.BASE_ODDS)});
+                    got: order(flat), want: order(base)});
   const spread = (a) => Math.max(...a) / Math.min(...a);
-  ochk('and flattens rather than sharpens', spread(flat) < spread(F.BASE_ODDS) ? 1 : 0, 1, 0);
+  ochk('and flattens rather than sharpens', spread(flat) < spread(base) ? 1 : 0, 1, 0);
   ochk('a uniform boost still totals 100',
        Math.abs(flat.reduce((a, b) => a + b, 0) - 100) < 0.01 ? 1 : 0, 1, 0);
   F.oddsMult = [0,0,0,0,0,0,0];
@@ -2065,8 +2094,11 @@ window.addEventListener('load', () => setTimeout(() => {
   if (F.coins !== 0) resetLeaks.push('coins');
   if (F.traits.length !== 0) resetLeaks.push('traits');
   if (F.doubles !== 0) resetLeaks.push('doubles');
-  if (JSON.stringify(F.oddsMult) !== '[0,0,0,0,0,0,0]') resetLeaks.push('oddsMult');
-  if (JSON.stringify(F.fruitMult) !== '[1,1,1,1,1,1,1]') resetLeaks.push('fruitMult');
+  // Derived from COLORS, not spelled out: these were seven literals, and adding the eighth
+  // fruit made this test fail for the very reason the test exists.
+  const fresh = v => JSON.stringify(new Array(F.COLORS.length).fill(v));
+  if (JSON.stringify(F.oddsMult) !== fresh(0)) resetLeaks.push('oddsMult');
+  if (JSON.stringify(F.fruitMult) !== fresh(1)) resetLeaks.push('fruitMult');
 
   const restored = F.restoreRun(snap);
   if (!restored) runFails.push({field:'restoreRun', got:'returned false'});
