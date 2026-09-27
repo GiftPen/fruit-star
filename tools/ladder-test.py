@@ -88,6 +88,80 @@ window.addEventListener('load', () => setTimeout(async () => {
   const single = await paceAt(F.CRACKER_PAIR_LEVEL - 1, 6);
   chk('the level below still drops one', single.map(x => x.by), [1, 1, 1]);
 
+  // ---- crossing a rung has to SAY what it did ----
+  // A level that changes something invisible is a number going up for no reason. Every rung
+  // alters exactly one knob, so the banner names it -- and this doubles as a second guard on
+  // dead rungs: a rung with nothing to announce has nothing to announce because nothing moved.
+  for (let m = 1; m < F.MAX_LEVEL; m++) {
+    const line = F.levelGain(m);
+    chk('Lv.' + (m + 1) + ' announces something', line.length > 0, true);
+    // ...and it is the knob that actually moved, named with its new value
+    const A = F.MODES.arcade;
+    let want = null;
+    if (A.colors(m) !== A.colors(m - 1)) want = String(A.colors(m));
+    else if (A.spawns(m) !== A.spawns(m - 1)) want = String(A.spawns(m));
+    else if (A.crackerCount(m) !== A.crackerCount(m - 1)) want = String(A.crackerCount(m));
+    else if (A.crackerOn(m) !== A.crackerOn(m - 1)) want = null;      // "크래커가 나타납니다"
+    else if (A.crackerGap(m) !== A.crackerGap(m - 1)) want = String(A.crackerGap(m));
+    if (want !== null)
+      chk('Lv.' + (m + 1) + ' names the new value (' + want + ')', line.includes(want), true);
+  }
+
+  // it fires on the crossing, once, with the right number
+  F.start('arcade');
+  await sleep(200);
+  // one point short of Lv.3 is still INSIDE Lv.2, and getting there crosses Lv.2's own rung
+  F.score = F.LEVEL_AT[2] - 1; F.updateHUD();
+  F.levelFx = null; F.updateHUD();
+  chk('standing still inside a level, nothing happens', !!F.levelFx, false);
+  F.score = F.LEVEL_AT[2]; F.updateHUD();
+  chk('crossing it fires the banner', !!F.levelFx, true);
+  chk('...for the level just reached', F.levelFx && F.levelFx.lv, 3);
+  F.levelFx = null; F.updateHUD();
+  chk('and it does not fire again on the next HUD update', !!F.levelFx, false);
+
+  // the text has to reach the canvas: everything above passes with nothing drawn
+  {
+    F.score = F.LEVEL_AT[3]; F.updateHUD();
+    const proto = CanvasRenderingContext2D.prototype, real = proto.fillText;
+    const said = [];
+    proto.fillText = function (t, ...a) { said.push(String(t)); return real.call(this, t, ...a); };
+    if (F.levelFx) { F.levelFx.t = 0.5; F.dirty = true; F.draw(); }
+    proto.fillText = real;
+    chk('the band says the level', said.some(x => x.includes('4')), true);
+    chk('...and what changed', said.includes(F.levelGain(3)), true);
+  }
+
+  // a new run is not a level UP...
+  F.start('arcade');
+  await sleep(150);
+  chk('starting a run does not fire it', !!F.levelFx, false);
+
+  // ...but the SECOND run still has to get its banners. The level last shown is remembered
+  // to stop it re-firing, and a run that forgets to clear it starts at Lv.1 with the memory
+  // of Lv.13 -- so `lv > shownLevel` is false for the whole run and nothing ever fires again.
+  F.score = F.LEVEL_AT[F.MAX_LEVEL - 1]; F.updateHUD();     // climb to the top
+  chk('the first run reached the top', F.level(), F.MAX_LEVEL);
+  F.start('arcade');
+  await sleep(150);
+  F.levelFx = null;
+  F.score = F.LEVEL_AT[1]; F.updateHUD();
+  chk('the second run still gets its banners', !!F.levelFx, true);
+  F.start('rush');
+  await sleep(150);
+  F.levelFx = null; F.score = 999999; F.updateHUD();
+  chk('rush has no ladder, so no banner', !!F.levelFx, false);
+
+  // it drains, and a run that ends mid-banner does not carry it into the next
+  F.start('arcade');
+  await sleep(150);
+  F.levelFx = { lv: 5, line: 'x', sub: 'y', t: 0 };
+  for (let i = 0; i < 300; i++) F.draw();
+  chk('the banner ends instead of sitting there', F.levelFx, null);
+  F.levelFx = { lv: 5, line: 'x', sub: 'y', t: 0.3 };
+  F.resetEffects();
+  chk('reset clears it', F.levelFx, null);
+
   // ---- the coin-fruit chance climbs with the ladder, at the SPAWN SITE ----
   // Math.random decides both where a bud lands and whether it carries a coin, so pinning it
   // turns the coin decision into a pure threshold: a roll of 0.10 is above Lv.1's 6% and

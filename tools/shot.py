@@ -21,6 +21,19 @@ SCREENS = {
   # full-screen overlay, so only a whole-page shot can show them
   # a 10+ clear, caught with the slabs in the air. The animation clock does not run under
   # virtual time, so it is driven by hand to the moment worth looking at.
+  # the level-up band, frozen mid-sweep. Like the all-clear flourish it is over long before
+  # the shutter, so the frame is drawn by hand and pinned as an <img> nothing can repaint.
+  'lvup': ("D.getElementById('btn-arcade').click();"
+           " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++){"
+           "   F.grid[r][c]=(r*F.COLS+c)%5; F.special[r][c]=null; F.appear[r][c]=0; }"
+           " F.score=100000; F.coins=430; F.touchCount=214; F.coinsShown=430; F.updateHUD();"
+           " F.levelFx={lv:13, line:F.levelGain(12), sub:'코인 과일 30%', t:0.45};"
+           " F.dirty=true; F.draw();"
+           " const cv=D.getElementById('game'), bb=cv.getBoundingClientRect();"
+           " const im=D.createElement('img'); im.src=cv.toDataURL();"
+           " im.style.cssText='position:fixed;z-index:9;left:'+bb.left+'px;top:'+bb.top"
+           "   +'px;width:'+bb.width+'px;height:'+bb.height+'px';"
+           " D.body.appendChild(im);"),
   # the arcade HUD at its widest: Lv capped so MAX shows, three digits of touches and a purse.
   # Shot at SHOT_W=360 this is the phone report that started the chip-row fix.
   'chips': ("D.getElementById('btn-arcade').click();"

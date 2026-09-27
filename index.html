@@ -425,6 +425,13 @@
   .sb-btn { cursor: pointer; border-radius: 10px; }
   .sb-btn.on { box-shadow: 0 0 0 2px var(--gold) inset; }
   .sb-cell.bump { animation: coinBump .22s ease-out; }
+  /* the banner says WHAT changed; this says WHERE the number lives, so the two connect */
+  .sb-cell.lvup { animation: lvUp .9s ease-out; }
+  @keyframes lvUp {
+    0%   { transform: scale(1);    filter: none; }
+    18%  { transform: scale(1.22); filter: brightness(1.7); }
+    100% { transform: scale(1);    filter: none; }
+  }
   /* one height for everything on the chip row: the coin carries a border and measured 2px
      shorter than its neighbours */
   /* A 320px phone has 284px of content width once the row's own padding is taken, and four
@@ -1608,6 +1615,11 @@
   // lands as nothing. It gets the one flourish that is impossible at any other moment: the
   // plate itself, all 64 recesses bare, lit one rank at a time by a wave running out from
   // where the last cluster went.
+  // A level that changes something the player cannot see is a number going up for no reason.
+  // Every rung of the ladder alters exactly one knob, so the banner names it: not "LEVEL UP"
+  // but "매 턴 과일 +1". Non-blocking on purpose -- the score crosses a threshold in the
+  // middle of a burst, and stopping the game there would cut the burst in half.
+  const LEVELUP_MS = 1800;
   const ALLCLEAR_MS = 1500;    // how long the whole flourish lives
   const ALLCLEAR_HOLD = 900;   // ...and how much of it plays before the turn refills the board
   // A bare board is not automatically an achievement. Round 1 opens with ten fruit and the
@@ -2270,6 +2282,8 @@
   let wash = null;            // tier 3: {col, t} full-screen colour wash
   let hitstop = 0;            // tier 2: ms of frozen animation still owed
   let allClear = null;        // above the tiers: {cx, cy, t} light wave over an empty plate
+  let levelFx = null;         // {lv, line, sub, t} the band that names what just got harder
+  let shownLevel = 1;         // what the HUD last showed, so a rise can be noticed
   let dirty = true;           // redraw needed; when idle we skip drawing to save battery/heat
   let frame = 0;              // frame counter for idle animations (e.g. bomb wiggle)
   const fruitImg = [];        // loaded SVG Images per color slot
@@ -2596,6 +2610,7 @@
   function resetEffects() {
     particles = []; birds = []; flares = []; waves = []; links = []; floats = []; clearCoinFly();
     splats = []; shock = null; wash = null; hitstop = 0; liveShards = 0; allClear = null;
+    levelFx = null;
     shake = 0; flash = 0; dirty = true;
   }
   function randInt(n) { return Math.floor(Math.random() * n); }
@@ -2667,6 +2682,18 @@
   // base rate for the mode and depth, plus whatever relics added
   function coinFruitChance(m = milestone()) { return rules().coinFruit(m) + coinFruitBonus; }
   function crackerCount(m = milestone()) { return rules().crackerCount(m); }
+  // Which knob moved on this rung. Asked of the rules, not kept as a parallel list: a list
+  // would be a second place to edit and the one that goes stale when the ladder is retuned.
+  function levelGain(m) {
+    const a = rules();
+    if (m < 1) return "";
+    if (a.crackerOn(m) !== a.crackerOn(m - 1))       return d("gainCracker");
+    if (a.colors(m) !== a.colors(m - 1))             return d("gainColor", a.colors(m));
+    if (a.spawns(m) !== a.spawns(m - 1))             return d("gainSpawn", a.spawns(m));
+    if (a.crackerCount(m) !== a.crackerCount(m - 1)) return d("gainCrackerCount", a.crackerCount(m));
+    if (a.crackerGap(m) !== a.crackerGap(m - 1))     return d("gainCrackerGap", a.crackerGap(m));
+    return "";
+  }
   function activeColors(m = milestone()) { return rules().colors(m); }
   function spawnCount(m = milestone()) { return rules().spawns(m) + spawnBonus + spawnBought; }
   function stageTouches() { return rules().touches + touchBonus; }
@@ -3424,6 +3451,13 @@
       statCracker: "크래커 등장",
       statCrackerEvery: "크래커 주기",
       statCrackerCount: "한 번에 나오는 크래커",
+      levelUp: n => `Lv.${n} 달성!`,
+      gainCracker: "크래커가 나타납니다",
+      gainColor: n => `과일 종류 ${n}가지`,
+      gainSpawn: n => `매 턴 과일 ${n}개`,
+      gainCrackerGap: n => `크래커가 ${n}터치마다`,
+      gainCrackerCount: n => `크래커가 한 번에 ${n}개`,
+      gainCoin: n => `코인 과일 ${n}%`,
       statSpawn: "매 턴 과일",
       statTouch: "스테이지 터치",
       statComboCap: "콤보 상한",
@@ -3839,6 +3873,13 @@
       statCracker: "Cracker spawn",
       statCrackerEvery: "Cracker pace",
       statCrackerCount: "Crackers at once",
+      levelUp: n => `Lv.${n} reached!`,
+      gainCracker: "Crackers appear",
+      gainColor: n => `${n} fruit types`,
+      gainSpawn: n => `${n} fruit per turn`,
+      gainCrackerGap: n => `A cracker every ${n}`,
+      gainCrackerCount: n => `${n} crackers at a time`,
+      gainCoin: n => `${n}% coin fruit`,
       statSpawn: "Fruit per turn",
       statTouch: "Touches per stage",
       statComboCap: "Combo cap",
@@ -4253,6 +4294,13 @@
       statCracker: "クラッカー出現",
       statCrackerEvery: "クラッカー周期",
       statCrackerCount: "同時クラッカー数",
+      levelUp: n => `Lv.${n} 到達!`,
+      gainCracker: "クラッカーが出現",
+      gainColor: n => `フルーツ ${n}種`,
+      gainSpawn: n => `毎ターン ${n}個`,
+      gainCrackerGap: n => `クラッカーが${n}タッチごと`,
+      gainCrackerCount: n => `クラッカーが一度に${n}個`,
+      gainCoin: n => `コイン果実 ${n}%`,
       statSpawn: "毎ターンのフルーツ",
       statTouch: "ステージのタッチ",
       statComboCap: "コンボ上限",
@@ -4667,6 +4715,13 @@
       statCracker: "饼干出现",
       statCrackerEvery: "饼干周期",
       statCrackerCount: "同时出现的饼干",
+      levelUp: n => `Lv.${n} 达成!`,
+      gainCracker: "饼干开始出现",
+      gainColor: n => `水果 ${n} 种`,
+      gainSpawn: n => `每回合 ${n} 个`,
+      gainCrackerGap: n => `饼干每 ${n} 次`,
+      gainCrackerCount: n => `饼干一次 ${n} 个`,
+      gainCoin: n => `金币水果 ${n}%`,
       statSpawn: "每回合水果",
       statTouch: "每关触碰",
       statComboCap: "连击上限",
@@ -6026,6 +6081,20 @@
       if (el) el.textContent = coinsShown;
     }
     const lv = level();
+    // The ladder only exists in arcade. Rush shows no Lv chip and must not flash a banner.
+    if (rules().scaleWithScore && lv > shownLevel) {
+      const m = lv - 1;
+      levelFx = { lv, line: levelGain(m),
+                  sub: d("gainCoin", Math.round(rules().coinFruit(m) * 100)), t: 0 };
+      SFX.play("levelup");
+      const chip = document.getElementById("st-lvl-chip");
+      chip.classList.remove("lvup"); void chip.offsetWidth; chip.classList.add("lvup");
+      dirty = true;
+    }
+    // Always, not only when it rose. This is also what resets it between runs: start()
+    // ends in updateHUD() with a score of 0, so the next run begins remembering Lv.1.
+    // A separate reset in resetRun() was unreachable and no mutation could catch it.
+    shownLevel = lv;
     document.getElementById("st-level").textContent = lv;
     document.getElementById("st-max").classList.toggle("hidden", lv < MAX_LEVEL);
     document.getElementById("st-touch").textContent = touchCount;
@@ -6392,6 +6461,14 @@
       graft: () => [0, 4, 7, 12, 16].forEach((n, i) =>
                      tone({ f: hz(n) * 4, dur: 0.2, vol: 0.12, type: "sine", delay: i * 0.05 })),
       expire:() => tone({ f: 400, f2: 190, dur: 0.22, vol: 0.16, type: "triangle" }),
+      // A rung of the ladder. Short -- it fires mid-burst, so it has to land and get out of
+      // the way rather than play over the pops like the stage and round fanfares do.
+      levelup: () => {
+        [0, 4, 7].forEach((n, i) =>
+          tone({ f: hz(n) * 2, dur: 0.16, vol: 0.17, type: "triangle", delay: i * 0.055 }));
+        tone({ f: hz(12) * 2, dur: 0.45, att: 0.02, vol: 0.13, type: "sine", delay: 0.16 });
+        tone({ f: hz(12) * 2 * 1.005, dur: 0.45, att: 0.02, vol: 0.09, type: "sine", delay: 0.17 });
+      },
       // An empty board is the rarest thing that can happen, so its cue climbs past where
       // every other one stops -- two octaves of the scale, then a ringing fifth held under it.
       allclear: () => {
@@ -8974,7 +9051,7 @@
     let live = particles.length || birds.length || flares.length || waves.length || links.length
              || floats.length || coinsShown !== coins
              || shake > 0.3 || flash > 0.01
-             || splats.length || shock || wash || hitstop > 0 || wasDanger || allClear;
+             || splats.length || shock || wash || hitstop > 0 || wasDanger || allClear || levelFx;
     if (!live) for (let r = 0; r < ROWS && !live; r++) for (let c = 0; c < COLS; c++)
       if (glow[r][c] || appear[r][c] > 0 || special[r][c] === "bomb") { live = true; break; }
     if (!dirty && !live) { requestAnimationFrame(draw); return; }
@@ -8995,6 +9072,7 @@
     if (shock) { shock.t += 0.055 * k; if (shock.t >= 1) shock = null; }
     if (wash) { wash.t -= 0.055 * k; if (wash.t <= 0) wash = null; }
     if (allClear) { allClear.t += (FRAME_STEP_MS * k) / ALLCLEAR_MS; if (allClear.t >= 1) allClear = null; }
+    if (levelFx) { levelFx.t += (FRAME_STEP_MS * k) / LEVELUP_MS; if (levelFx.t >= 1) levelFx = null; }
 
     // one clock reading for the whole frame: the wind-up before each pop is timed against it
     const nowMs = performance.now();
@@ -9650,6 +9728,49 @@
 
     // tier 3: the plate takes the fruit's colour for a moment. Not white like the star's
     // flash -- a 10+ lemon cluster should read as YELLOW, so the colour is the reward.
+    // A rung of the ladder just moved. A band sweeps the plate and names the knob, because
+    // "LEVEL UP" on its own tells a player nothing they can act on -- "크래커가 2터치마다"
+    // tells them why the board is suddenly filling faster.
+    if (levelFx) {
+      const t = levelFx.t;
+      const wipe = Math.min(1, t / 0.16);                       // sweeps open
+      const fade = Math.min(1, (1 - t) / 0.22);                 // ...and fades out
+      const a = Math.max(0, Math.min(wipe, fade));
+      const h = Math.max(54, cell * 1.75);
+      const y = (boardH - h) / 2;
+      const w = boardPx * (0.25 + 0.75 * wipe);                 // the sweep itself
+      ctx.save();
+      ctx.globalAlpha = a;
+      const g = ctx.createLinearGradient(0, y, 0, y + h);
+      g.addColorStop(0,   "rgba(20,14,6,0.55)");
+      g.addColorStop(0.5, "rgba(40,28,10,0.88)");
+      g.addColorStop(1,   "rgba(20,14,6,0.55)");
+      ctx.fillStyle = g;
+      ctx.fillRect((boardPx - w) / 2, y, w, h);
+      ctx.fillStyle = "#ffd76a";
+      ctx.fillRect((boardPx - w) / 2, y, w, 2);
+      ctx.fillRect((boardPx - w) / 2, y + h - 2, w, 2);
+      // the text only once the band is wide enough to hold it
+      if (wipe > 0.55) {
+        ctx.globalAlpha = a * Math.min(1, (wipe - 0.55) / 0.3);
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = "#ffe89a";
+        ctx.font = `800 ${Math.round(cell * 0.52)}px Maplestory, system-ui, sans-serif`;
+        ctx.fillText(d("levelUp", levelFx.lv), boardPx / 2, y + h * 0.33);
+        if (levelFx.line) {
+          ctx.fillStyle = "#fff";
+          ctx.font = `800 ${Math.round(cell * 0.30)}px Maplestory, system-ui, sans-serif`;
+          ctx.fillText(levelFx.line, boardPx / 2, y + h * 0.63);
+        }
+        if (levelFx.sub) {
+          ctx.fillStyle = "#c8b48a";
+          ctx.font = `700 ${Math.round(cell * 0.22)}px Maplestory, system-ui, sans-serif`;
+          ctx.fillText(levelFx.sub, boardPx / 2, y + h * 0.85);
+        }
+      }
+      ctx.restore();
+    }
+
     if (wash) {
       ctx.save();
       ctx.globalAlpha = Math.max(0, wash.t) * 0.26;
@@ -10468,6 +10589,8 @@
       resetRun, serializeRun, restoreRun, FRUIT_POINTS, COLS,
       MODES, activeColors, spawnCount, crackerLevel, computeMaxLevel,
       crackerGap, crackerCount, LEVEL_AT, CRACKER_EVERY, CRACKER_MIN, CRACKER_PAIR_LEVEL,
+      levelGain, level, milestone, LEVELUP_MS,
+      get levelFx() { return levelFx; }, set levelFx(v) { levelFx = v; },
       get MAX_LEVEL() { return MAX_LEVEL; },
       coinFruitChance, COIN_FRUIT_STEP,
       spawnBuds, spawnCracker, fruitSignature,
