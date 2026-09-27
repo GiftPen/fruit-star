@@ -63,6 +63,37 @@ window.addEventListener('load', () => setTimeout(async () => {
   const lemonWash = await new Promise(res => setTimeout(() => res(F.wash), 60));
   chk('the wash is the fruit colour', lemonWash && lemonWash.color, F.COLORS[3]);
 
+  // ---- 많은 과일을 터뜨린다: the axis that had no sound at all ----
+  // The tiers were visual only -- juice, shockwave, wash -- so twenty fruit and three fruit
+  // made the same noise a different number of times. The only thing that grew with a clear
+  // was the combo accent climbing into the treble, with nothing underneath it, which is
+  // exactly why a tester said the combo sounded detached from the game.
+  F.SFX.unlock(); F.SFX.resume();
+  const nap = ms => new Promise(r => setTimeout(r, ms));
+  const oscCtor = AudioContext.prototype.createOscillator;
+  const heardHz = [];
+  AudioContext.prototype.createOscillator = function () {
+    const o = oscCtor.call(this);
+    const sv = o.frequency.setValueAtTime.bind(o.frequency);
+    o.frequency.setValueAtTime = (v, t) => { heardHz.push(Math.round(v)); return sv(v, t); };
+    return o;
+  };
+  const thudOf = async n => { await nap(450); heardHz.length = 0; F.SFX.play('thud', n); return heardHz.slice(); };
+  const smallThud = await thudOf(T1), bigThud = await thudOf(T3 * 2);
+  chk('a clear has a bottom end at all', smallThud.length > 0 && Math.min(...smallThud) < 200, true);
+  chk('a bigger clear lands deeper', Math.min(...bigThud) < Math.min(...smallThud), true);
+  // ...and the payoff has to actually fire it. Defining a cue nothing calls is the usual way
+  // this rots -- clusterPayoff played no sound at all before this.
+  await nap(450); heardHz.length = 0;
+  F.resetEffects(); F.clusterPayoff(4, 4, T3, 0, 0);
+  chk('the cluster payoff plays it', heardHz.some(v => v < 200), true);
+  // a pop on its own must NOT carry the low end: it fires once per fruit, and a floor per
+  // fruit cost a voice each -- simultaneous pops fell 13 -> 11, starving the very cluster
+  // the weight was for
+  await nap(450); heardHz.length = 0; F.SFX.play('pop', 0, 0);
+  chk('a single pop leaves the bottom to the cluster', heardHz.some(v => v < 200), false);
+  AudioContext.prototype.createOscillator = oscCtor;
+
   // ---- a bigger clear splashes more of the board
   fire(T1); const few = F.splats.length;
   fire(T3 * 2); const many = F.splats.length;

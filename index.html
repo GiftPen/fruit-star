@@ -6301,6 +6301,10 @@
       drop: { name: "물방울", play(f) {          // bubble collapse: sine, sweeping up, fast decay
         tone({ f: f * 0.55, f2: f * 1.9, dur: 0.075, vol: 0.55, type: "sine", lead: true });
         noise({ f: f * 6, dur: 0.012, vol: 0.16, filter: "highpass", lead: true });
+        // No low end here on purpose. A floor per FRUIT was tried and it cost a voice each:
+        // simultaneous pops fell from 13 to 11, so a big cluster started dropping the very
+        // pops the weight was meant to serve. The weight belongs to the cluster, once, where
+        // it can also scale with how big the cluster was -- see `thud`.
       } },
       splat: { name: "과즙", play(f) {           // wet squish: resonant lowpass slamming shut
         noise({ f: 6500, f2: f * 0.8, dur: 0.09, vol: 0.42, filter: "lowpass", q: 7, lead: true });
@@ -6355,6 +6359,18 @@
     // The fundamental is always the first call: voices are claimed in order and the accent
     // budget can run out mid-cluster, so what survives has to be the note itself.
     const COMBO_STYLES = {
+      body: { name: "묵직", play(f, n, grow) {
+        // Two octaves below where the accent used to sit. A streak is felt, not heard over
+        // the top -- the pops own the mid and high, so the accent takes the floor. It still
+        // climbs, but through the low-mid, so a long streak gets HEAVIER rather than shriller.
+        const lo = f / 4;
+        tone({ f: lo, f2: lo * 0.78, dur: 0.13 + grow * 0.06, vol: 0.21 + grow * 0.10, type: "sine" });
+        tone({ f: lo * 2, dur: 0.06, vol: 0.05 + grow * 0.03, type: "triangle" });  // places the pitch
+        if (n >= COMBO_CHORD)
+          noise({ f: 250, f2: 85, dur: 0.09, vol: 0.07 + grow * 0.05, filter: "lowpass" });
+        if (n >= COMBO_FLOURISH)
+          tone({ f: lo * 1.5, dur: 0.11, vol: 0.05 + grow * 0.03, type: "sine", delay: 0.035 });
+      } },
       bell: { name: "종", play(f, n, grow) {      // struck metal: partials decaying fastest on top
         tone({ f, dur: 0.34 + grow * 0.12, vol: 0.12 + grow * 0.05, type: "sine" });
         tone({ f: f * 1.004, dur: 0.30, vol: 0.06 + grow * 0.03, type: "sine" });   // detune shimmer
@@ -6461,6 +6477,18 @@
       graft: () => [0, 4, 7, 12, 16].forEach((n, i) =>
                      tone({ f: hz(n) * 4, dur: 0.2, vol: 0.12, type: "sine", delay: i * 0.05 })),
       expire:() => tone({ f: 400, f2: 190, dur: 0.22, vol: 0.16, type: "triangle" }),
+      // 많은 과일을 터뜨린다 -- the axis that had NO sound at all. The cluster tiers were
+      // visual only (juice, shockwave, wash), so twenty fruit and three fruit made the same
+      // noise a different number of times, and the only thing that grew with a clear was the
+      // combo accent climbing into the treble. That is why it sounded detached: nothing was
+      // holding the bottom. Weight lives down here, where this game had nothing.
+      thud: (cleared = TIER_SPLAT) => {
+        const k = Math.min(1, (cleared - TIER_SPLAT) / (TIER_WASH * 1.4));
+        const f = 128 - 44 * k;                    // the bigger the clear, the deeper it lands
+        tone({ f, f2: f * 0.55, dur: 0.15 + k * 0.17, vol: 0.20 + k * 0.16, type: "sine", lead: true });
+        noise({ f: 280 + 240 * k, f2: 85, dur: 0.09 + k * 0.11, vol: 0.09 + k * 0.11,
+                filter: "lowpass", q: 1.2, lead: true });
+      },
       // A rung of the ladder. Short -- it fires mid-burst, so it has to land and get out of
       // the way rather than play over the pops like the stage and round fanfares do.
       levelup: () => {
@@ -8425,6 +8453,7 @@
   function clusterPayoff(r0, c0, cleared, color, endMs) {
     const tier = clusterTier(cleared);
     if (!tier) return;
+    SFX.play("thud", cleared);          // how MUCH was cleared, which nothing was saying
     const col = COLORS[color] || "#fff";
     const cx = pad + c0 * cell + cell / 2, cy = pad + r0 * cell + cell / 2;
 

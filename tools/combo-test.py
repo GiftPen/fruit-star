@@ -50,10 +50,14 @@ window.addEventListener('load', () => setTimeout(async () => {
     const realNow = performance.now;
     // OscillatorNode is created per tone(); patch the constructor the context hands out
     const proto = Object.getPrototypeOf(new (window.AudioContext || window.webkitAudioContext)());
-    const real = proto.createOscillator;
+    // Count what the ENGINE calls a voice, not just oscillators: a layer can be filtered
+    // noise, and the shipped accent uses one for its body. Counting only OscillatorNode
+    // reported "no new voice" for a threshold that plainly adds one.
+    const real = proto.createOscillator, realBuf = proto.createBufferSource;
     proto.createOscillator = function (...a) { made++; return real.apply(this, a); };
+    proto.createBufferSource = function (...a) { made++; return realBuf.apply(this, a); };
     S.play('combo', n);
-    proto.createOscillator = real;
+    proto.createOscillator = real; proto.createBufferSource = realBuf;
     return made;
   };
   const vBase = countTones(0);
@@ -105,16 +109,25 @@ window.addEventListener('load', () => setTimeout(async () => {
   for (const k of S.COMBO_KEYS) {
     const v = await voicesOf(k, 1);
     chk(k + ': the accent is audible at all', v.length > 0, true);
-    chk(k + ': it starts on the streak note',
-        Math.round(Math.min(...v)), Math.round(S.comboHz(1)));
+    // Octave-related to the streak note, not equal to it: the shipped accent plays two
+    // octaves DOWN so it sits under the pops instead of over them.
+    const oct = Math.log2(Math.min(...v) / S.comboHz(1));
+    chk(k + ': it is the streak note, in some octave', Math.abs(oct - Math.round(oct)) < 0.02, true);
   }
   // the default must not be the flat one, or nothing changed for anybody
   chk('the shipped default is not the old beeper', was === 'old', false);
+  // The complaint that prompted this: "콤보는 소리가 너무 튀어요 혼자 따로 노는 느낌". It was
+  // climbing to 2.2kHz over pops that own the mid and high, with nothing holding the bottom.
+  // An accent belongs UNDER what it accents.
+  chk('the shipped accent sits below the pops',
+      Math.min(...(await voicesOf(was, 4))) < S.popHz(0, 0), true);
   const rich = await voicesOf(S.COMBO_KEYS[0], 1), flat = await voicesOf('old', 1);
   chk('the default has partials the old one did not', rich.length > flat.length, true);
-  // a struck object shimmers: two voices a few cents apart, not one dead pitch
-  chk('the default detunes a pair against each other',
-      rich.some(a => rich.some(b => a !== b && Math.abs(a / b - 1) < 0.02)), true);
+  // Detuning is 종's technique for sounding struck, not a law every style must obey -- the
+  // shipped accent earns its place by sitting low instead. Check it where it IS the point.
+  const bell = await voicesOf('bell', 1);
+  chk('종 shimmers: two voices a few cents apart',
+      bell.some(a => bell.some(b => a !== b && Math.abs(a / b - 1) < 0.02)), true);
   // and the whole point of the ladder: a later streak is a higher note, in every style
   for (const k of S.COMBO_KEYS) {
     const hi = await voicesOf(k, 4), lo = await voicesOf(k, 1);
