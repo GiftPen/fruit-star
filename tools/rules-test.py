@@ -116,7 +116,7 @@ window.addEventListener('load', () => setTimeout(() => {
   // arcade knobs must still match the formulas they were hardcoded as before the table
   const modeFails = [];
   const refColors  = m => Math.min(7, 4 + Math.floor((m + 1) / 3));
-  const refSpawns  = m => Math.min(4, 1 + Math.floor(m / 3));
+  const refSpawns  = m => Math.min(5, 1 + Math.floor(m / 3));
   // one hit, always: the obstacle is a cracker now, not a wall to grind down
   const refCrackerOn = m => (m >= 1 ? 1 : 0);
   const A = F.MODES.arcade, R = F.MODES.rush;
@@ -147,14 +147,29 @@ window.addEventListener('load', () => setTimeout(() => {
     if (F.spawnCount(0) !== withRelic) modeFails.push({knob:'rush spawn unrelated trait', got:F.spawnCount(0), want:withRelic});
     F.relics = []; F.traits = []; F.applyRelics(); F.resetRun();
   })();
-  if (F.computeMaxLevel() !== 10) modeFails.push({knob:'MAX_LEVEL', got:F.computeMaxLevel(), want:10});
+  if (F.computeMaxLevel() !== 13) modeFails.push({knob:'MAX_LEVEL', got:F.computeMaxLevel(), want:13});
+  // The ladder ends where LEVEL_AT ends -- that table IS the ceiling, so a level with no
+  // score to reach it, or a score with no level, is a silent mismatch.
+  if (F.LEVEL_AT.length !== F.MAX_LEVEL)
+    modeFails.push({knob:'LEVEL_AT length', got:F.LEVEL_AT.length, want:F.MAX_LEVEL});
+  if (F.LEVEL_AT[0] !== 0) modeFails.push({knob:'LEVEL_AT starts at 0', got:F.LEVEL_AT[0], want:0});
+  for (let i = 1; i < F.LEVEL_AT.length; i++)
+    if (F.LEVEL_AT[i] <= F.LEVEL_AT[i - 1])
+      modeFails.push({knob:'LEVEL_AT climbs', i, got:F.LEVEL_AT[i], want:'> ' + F.LEVEL_AT[i-1]});
+  // and it really is a table, not a constant step dressed up as one
+  {
+    const steps = F.LEVEL_AT.slice(1).map((v, i) => v - F.LEVEL_AT[i]);
+    if (new Set(steps).size < 2)
+      modeFails.push({knob:'LEVEL_AT is staged', got:steps.join(','), want:'more than one step size'});
+  }
 
   // ---- the staged cycle has no dead rungs ----
   // The cycle is cracker -> +1 colour -> +1 spawn, repeating. When crackers were flattened to
   // "unlocked, one hit, always" the cracker rung stopped changing anything, so Lv.5 and Lv.8
   // were identical to the level below: the chip counted up and the game did not get harder.
   // Crackers hold that rung by ARRIVING OFTENER instead -- 5 touches, then 4, then 3.
-  const knobs = m => [A.colors(m), A.spawns(m), A.crackerOn(m), A.crackerGap(m)].join('/');
+  const knobs = m => [A.colors(m), A.spawns(m), A.crackerOn(m), A.crackerGap(m),
+                      A.crackerCount(m)].join('/');
   for (let lv = 2; lv <= F.MAX_LEVEL; lv++) {
     const m = lv - 1;
     if (knobs(m) === knobs(m - 1))
@@ -170,6 +185,17 @@ window.addEventListener('load', () => setTimeout(() => {
   // rush crackers come from relics, so their pace is the base one, not the arcade ladder
   if (R.crackerGap(30) !== F.CRACKER_EVERY)
     modeFails.push({knob:'rush.crackerGap', got:R.crackerGap(30), want:F.CRACKER_EVERY});
+  // The fourth cycle's colour rung pays in a second cracker, because there is no eighth fruit.
+  // Guard the reason, not just the number: if a colour is ever added, this rung is wrong.
+  if (A.colors(F.CRACKER_PAIR_LEVEL - 1) !== A.colors(F.CRACKER_PAIR_LEVEL - 2))
+    modeFails.push({knob:'pair rung is where colours ran out',
+                    got:'colours still moving at m=' + (F.CRACKER_PAIR_LEVEL - 1), want:'exhausted'});
+  if (A.crackerCount(F.CRACKER_PAIR_LEVEL - 2) !== 1)
+    modeFails.push({knob:'one cracker before the pair rung', got:A.crackerCount(F.CRACKER_PAIR_LEVEL - 2), want:1});
+  if (A.crackerCount(F.CRACKER_PAIR_LEVEL - 1) !== 2)
+    modeFails.push({knob:'two crackers from the pair rung', got:A.crackerCount(F.CRACKER_PAIR_LEVEL - 1), want:2});
+  if (R.crackerCount(30) !== 1)
+    modeFails.push({knob:'rush.crackerCount', got:R.crackerCount(30), want:1});
   // MAX_LEVEL is derived from where every knob caps -- it has to count this one, or adding a
   // rung silently leaves the top level unreachable
   if (F.computeMaxLevel() < 8)

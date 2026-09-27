@@ -46,7 +46,7 @@ window.addEventListener('load', () => setTimeout(async () => {
   const paceAt = async (lv, turns) => {
     F.start('arcade');
     await sleep(250);
-    F.score = (lv - 1) * F.MILESTONE_STEP;
+    F.score = F.LEVEL_AT[lv - 1];
     F.touchCount = 0; F.updateHUD();
     clearFruit();
     const seen = [];
@@ -62,20 +62,31 @@ window.addEventListener('load', () => setTimeout(async () => {
       tap(spot[0], spot[1]);
       for (let k = 0; k < 60 && F.busy; k++) await sleep(50);   // let the turn finish
       const now = crackers();
-      if (now > had) seen.push(F.touchCount);
+      if (now > had) seen.push({ at: F.touchCount, by: now - had });
       had = now;
     }
     return seen;
   };
+  const touchesOf = s => s.map(x => x.at);
 
   // Lv.8 is the third cracker rung: every 3 touches
-  const fast = await paceAt(8, 9);
+  const fast8 = await paceAt(8, 9), fast = touchesOf(fast8);
   chk('Lv.8 spawns a cracker every 3 touches', fast, [3, 6, 9]);
+  chk('...one at a time', fast8.map(x => x.by), [1, 1, 1]);
   // ...and Lv.2, the first rung, is the base pace. If the loop is reading the constant
   // instead of the knob, these two come out the same.
-  const slow = await paceAt(2, 10);
+  const slow2 = await paceAt(2, 10), slow = touchesOf(slow2);
   chk('Lv.2 spawns a cracker every 5 touches', slow, [5, 10]);
   chk('the ladder actually changed the pace', fast.length > slow.length, true);
+
+  // The fourth cycle has no colour left to give, so its rung pays in a SECOND cracker per
+  // drop. The turn loop calls spawnCracker in a loop now, and a loop that runs once looks
+  // exactly like the old single call -- so count what lands, not what the rule returns.
+  const pair = await paceAt(F.CRACKER_PAIR_LEVEL, 6);
+  chk('the pair rung drops two at a time', pair.map(x => x.by), [2, 2, 2]);
+  chk('...on the tightened 2-touch pace', touchesOf(pair), [2, 4, 6]);
+  const single = await paceAt(F.CRACKER_PAIR_LEVEL - 1, 6);
+  chk('the level below still drops one', single.map(x => x.by), [1, 1, 1]);
 
   // ---- the coin-fruit chance climbs with the ladder, at the SPAWN SITE ----
   // Math.random decides both where a bud lands and whether it carries a coin, so pinning it
@@ -84,7 +95,7 @@ window.addEventListener('load', () => setTimeout(async () => {
   // adding the constant to the relic bonus and never consulting the mode at all.
   const coinAt = (lv, roll) => {
     F.start('arcade');
-    F.score = (lv - 1) * F.MILESTONE_STEP;
+    F.score = F.LEVEL_AT[lv - 1];
     for (let r = 0; r < F.ROWS; r++) for (let c = 0; c < F.COLS; c++) {
       F.grid[r][c] = -1; F.special[r][c] = null; F.coinCell[r][c] = 0; F.appear[r][c] = 0; }
     const real = Math.random; Math.random = () => roll;
@@ -109,7 +120,7 @@ window.addEventListener('load', () => setTimeout(async () => {
   // goes to check is worse than no number.
   F.start('arcade');
   await sleep(200);
-  F.score = 7 * F.MILESTONE_STEP;            // Lv.8 -> gap 3
+  F.score = F.LEVEL_AT[7];                   // Lv.8 -> gap 3
   F.updateHUD();
   document.getElementById('info-btn').click();
   await sleep(400);
