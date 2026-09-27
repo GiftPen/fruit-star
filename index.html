@@ -6254,6 +6254,46 @@
         noise({ f: 2600, f2: 700, dur: 0.1, vol: 0.22, filter: "highpass" });
       } },
     };
+    // Four takes on the streak accent. What was there was ONE naked triangle oscillator with
+    // an instant attack and a 0.1s decay -- which is a beeper, not an instrument. A note reads
+    // as an instrument when it has (a) partials above the fundamental that die away FASTER
+    // than it does, which is what a struck object does, and (b) two voices a few cents apart,
+    // so the pitch shimmers instead of sitting dead still. Both are free here.
+    // The fundamental is always the first call: voices are claimed in order and the accent
+    // budget can run out mid-cluster, so what survives has to be the note itself.
+    const COMBO_STYLES = {
+      bell: { name: "종", play(f, n, grow) {      // struck metal: partials decaying fastest on top
+        tone({ f, dur: 0.34 + grow * 0.12, vol: 0.12 + grow * 0.05, type: "sine" });
+        tone({ f: f * 1.004, dur: 0.30, vol: 0.06 + grow * 0.03, type: "sine" });   // detune shimmer
+        tone({ f: f * 2.01,  dur: 0.16, vol: 0.05 + grow * 0.02, type: "sine" });
+        if (n >= COMBO_CHORD) tone({ f: f * 3.0, dur: 0.10, vol: 0.035, type: "sine" });
+        if (n >= COMBO_FLOURISH) tone({ f: f * 4.0, dur: 0.09, vol: 0.03, type: "sine", delay: 0.06 });
+      } },
+      marimba: { name: "마림바", play(f, n, grow) {   // wooden bar: a tick, then a short round body
+        tone({ f, dur: 0.20 + grow * 0.06, vol: 0.13 + grow * 0.05, type: "sine" });
+        tone({ f: f * 3.97, dur: 0.055, vol: 0.045, type: "sine" });     // the bar's hard partial
+        noise({ f: f * 5, dur: 0.008, vol: 0.06, filter: "highpass" });  // the mallet itself
+        if (n >= COMBO_CHORD) tone({ f: f * 1.5, dur: 0.16, vol: 0.05 + grow * 0.03, type: "sine", delay: 0.012 });
+        if (n >= COMBO_FLOURISH) tone({ f: f * 2, dur: 0.14, vol: 0.04, type: "sine", delay: 0.07 });
+      } },
+      glass: { name: "유리", play(f, n, grow) {   // inharmonic and airy: long, quiet, glassy
+        tone({ f, dur: 0.46 + grow * 0.14, att: 0.012, vol: 0.10 + grow * 0.04, type: "sine" });
+        tone({ f: f * 2.76, dur: 0.22, att: 0.01, vol: 0.04 + grow * 0.02, type: "sine" });
+        tone({ f: f * 5.40, dur: 0.12, att: 0.01, vol: 0.022, type: "sine" });
+        if (n >= COMBO_FLOURISH) tone({ f: f * 2, dur: 0.30, vol: 0.03, type: "sine", delay: 0.08 });
+      } },
+      old: { name: "이전(삼각파)", play(f, n, grow) {
+        tone({ f, dur: 0.10 + grow * 0.05, vol: 0.11 + grow * 0.05, type: "triangle" });
+        if (n >= COMBO_CHORD)
+          tone({ f: f * 1.5, dur: 0.10, vol: 0.05 + grow * 0.03, type: "sine", delay: 0.012 });
+        if (n >= COMBO_FLOURISH)
+          tone({ f: f * 2, dur: 0.09, vol: 0.05, type: "triangle", delay: 0.07 });
+      } },
+    };
+    const COMBO_KEYS = Object.keys(COMBO_STYLES);
+    let comboStyle = COMBO_KEYS[0];
+    try { const c = LS.get("fs_combo"); if (COMBO_STYLES[c]) comboStyle = c; } catch (e) {}
+
     const CRACKER_KEYS = Object.keys(CRACKER_STYLES);
     let crackerStyle = CRACKER_KEYS[0];
     try { const b = LS.get("fs_brick"); if (CRACKER_STYLES[b]) crackerStyle = b; } catch (e) {}
@@ -6284,15 +6324,7 @@
       // buried under the pops anyway, which is why a long streak felt like nothing was
       // happening. It keeps climbing in octaves now, and thickens as it goes: a fifth joins
       // at COMBO_CHORD, a rising flourish at COMBO_FLOURISH. Louder AND different in kind.
-      combo: n => {
-        const f = comboHz(n);
-        const grow = Math.min(1, n / 8);
-        tone({ f, dur: 0.10 + grow * 0.05, vol: 0.11 + grow * 0.05, type: "triangle" });
-        if (n >= COMBO_CHORD)                       // a fifth above: the accent gains body
-          tone({ f: f * 1.5, dur: 0.10, vol: 0.05 + grow * 0.03, type: "sine", delay: 0.012 });
-        if (n >= COMBO_FLOURISH)                    // ...and a little rise on top of that
-          tone({ f: f * 2, dur: 0.09, vol: 0.05, type: "triangle", delay: 0.07 });
-      },
+      combo: n => COMBO_STYLES[comboStyle].play(comboHz(n), n, Math.min(1, n / 8)),
       coin:  () => { tone({ f: 1050, dur: 0.05, vol: 0.08, type: "triangle" });
                      tone({ f: 1560, dur: 0.09, vol: 0.07, type: "triangle", delay: 0.05 }); },
       bomb:  () => { noise({ f: 1800, f2: 120, dur: 0.34, vol: 0.34 });
@@ -6364,6 +6396,11 @@
       popStyle = k;
       try { LS.set("fs_pop", k); } catch (e) {}
     }
+    function setComboStyle(k) {
+      if (!COMBO_STYLES[k]) return;
+      comboStyle = k;
+      try { LS.set("fs_combo", k); } catch (e) {}
+    }
     function setCrackerStyle(k) {
       if (!CRACKER_STYLES[k]) return;
       crackerStyle = k;
@@ -6378,6 +6415,7 @@
              comboHz, COMBO_CHORD, COMBO_FLOURISH, COMBO_OCT_CAP, PENTA_LEN: COMBO_SCALE.length,
              POP_STYLES, POP_KEYS, setPopStyle, get popStyle() { return popStyle; },
              CRACKER_STYLES, CRACKER_KEYS, setCrackerStyle, get crackerStyle() { return crackerStyle; },
+             COMBO_STYLES, COMBO_KEYS, setComboStyle, get comboStyle() { return comboStyle; },
              get voices() { return voices; }, get MAX_VOICES() { return MAX_VOICES; },
              get state() { return ctx ? ctx.state : "none"; },
              get muted() { return muted; }, get volume() { return volume; },
@@ -6413,6 +6451,11 @@
   if (/[?&]pop=1/.test(location.search))
     styleProbe(SFX.POP_KEYS, SFX.POP_STYLES, SFX.setPopStyle, () => SFX.popStyle,
                () => [0, 4, 6].forEach((fruit, n) => setTimeout(() => SFX.play("pop", fruit), n * 110)));
+  // ?combo=1 -- the accent is only judged in a RUN, so the preview plays one: streaks 1, 3
+  // and 7, which is where the chord and the flourish come in.
+  if (/[?&]combo=1/.test(location.search))
+    styleProbe(SFX.COMBO_KEYS, SFX.COMBO_STYLES, SFX.setComboStyle, () => SFX.comboStyle,
+               () => [1, 3, 5, 7].forEach((n, i) => setTimeout(() => SFX.play("combo", n), i * 240)));
   if (/[?&]cracker=1/.test(location.search))
     styleProbe(SFX.CRACKER_KEYS, SFX.CRACKER_STYLES, SFX.setCrackerStyle, () => SFX.crackerStyle,
                () => SFX.play("cracker"));

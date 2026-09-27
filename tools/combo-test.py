@@ -14,13 +14,14 @@ import subprocess, os, re, json, sys
 _PAGE = f'_{os.path.basename(__file__)[:-3]}-{os.getpid()}.html'   # per-process: two runs of the suite were deleting each other's page
 
 TEST = """<script>
-window.addEventListener('load', () => setTimeout(() => {
+window.addEventListener('load', () => setTimeout(async () => {
  try {
   const F = window.__fs; const fails = [];
   const chk = (c, got, want) => { if (JSON.stringify(got) !== JSON.stringify(want))
                                     fails.push({ case: c, got, want }); };
   const S = F.SFX;
   S.unlock(); S.resume();
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   // ---- the accent must not flatten at the end of the scale
   const L = S.PENTA_LEN;
@@ -81,6 +82,46 @@ window.addEventListener('load', () => setTimeout(() => {
   // ...and none of it survives the streak being broken
   const off = read(0);
   chk('breaking the streak clears the badge', [off.on, off.hot], [false, false]);
+
+  // ---- the accent has to be an instrument, not a beeper ----
+  // It was ONE naked triangle oscillator with an instant attack. Watch the real audio graph
+  // rather than the style table: reading the table back proves the code was written, not that
+  // anything reaches the speaker.
+  const osc = AudioContext.prototype.createOscillator;
+  const heard = [];
+  AudioContext.prototype.createOscillator = function () {
+    const o = osc.call(this);
+    const sv = o.frequency.setValueAtTime.bind(o.frequency);
+    o.frequency.setValueAtTime = (v, t) => { heard.push(Math.round(v * 100) / 100); return sv(v, t); };
+    return o;
+  };
+  const voicesOf = async (style, n) => {
+    await sleep(600);                 // let the previous style's voices die: the accent budget
+    S.setComboStyle(style); heard.length = 0;   // is 14 and these ring for up to 0.46s
+    S.play('combo', n);
+    return heard.slice();
+  };
+  const was = S.comboStyle;
+  for (const k of S.COMBO_KEYS) {
+    const v = await voicesOf(k, 1);
+    chk(k + ': the accent is audible at all', v.length > 0, true);
+    chk(k + ': it starts on the streak note',
+        Math.round(Math.min(...v)), Math.round(S.comboHz(1)));
+  }
+  // the default must not be the flat one, or nothing changed for anybody
+  chk('the shipped default is not the old beeper', was === 'old', false);
+  const rich = await voicesOf(S.COMBO_KEYS[0], 1), flat = await voicesOf('old', 1);
+  chk('the default has partials the old one did not', rich.length > flat.length, true);
+  // a struck object shimmers: two voices a few cents apart, not one dead pitch
+  chk('the default detunes a pair against each other',
+      rich.some(a => rich.some(b => a !== b && Math.abs(a / b - 1) < 0.02)), true);
+  // and the whole point of the ladder: a later streak is a higher note, in every style
+  for (const k of S.COMBO_KEYS) {
+    const hi = await voicesOf(k, 4), lo = await voicesOf(k, 1);
+    chk(k + ': a longer streak is a higher note', Math.min(...hi) > Math.min(...lo), true);
+  }
+  AudioContext.prototype.createOscillator = osc;
+  S.setComboStyle(was);
 
   document.title = 'RESULT ' + JSON.stringify({ fails,
     hz: [0, 1, L - 1, L, L + 2, L * 5].map(n => Math.round(S.comboHz(n))),
