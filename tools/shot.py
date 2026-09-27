@@ -34,6 +34,13 @@ SCREENS = {
            " im.style.cssText='position:fixed;z-index:9;left:'+bb.left+'px;top:'+bb.top"
            "   +'px;width:'+bb.width+'px;height:'+bb.height+'px';"
            " D.body.appendChild(im);"),
+  # the arcade dock with 개간 in the basket's slot, and two rows already bought
+  'reclaim': ("D.getElementById('btn-arcade').click();"
+              " F.coins=9999; F.busy=false; F.buyInstant('reclaim'); F.buyInstant('reclaim');"
+              " F.coins=430; F.coinsShown=430; F.score=88000; F.touchCount=214;"
+              " for(let r=0;r<F.ROWS;r++)for(let c=0;c<F.COLS;c++)"
+              "   if((r*7+c)%3===0){F.grid[r][c]=(r+c)%5; F.appear[r][c]=0;}"
+              " F.updateHUD(); F.dirty=true; F.draw();"),
   # the arcade HUD at its widest: Lv capped so MAX shows, three digits of touches and a purse.
   # Shot at SHOT_W=360 this is the phone report that started the chip-row fix.
   'chips': ("D.getElementById('btn-arcade').click();"

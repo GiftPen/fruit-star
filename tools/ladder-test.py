@@ -226,6 +226,41 @@ window.addEventListener('load', () => setTimeout(async () => {
   // arcade has no touch budget, so a stage-touch row there reads "0 -> NaN"
   chk('no NaN anywhere in the panel', panel.includes('NaN'), false);
 
+  // ---- arcade buys GROUND, rush buys fruit ----
+  // The basket buys a turn back, which is a rush problem: a stage an item emptied takes
+  // turns to refill. Arcade never runs out of fruit -- it runs out of room -- so the same
+  // slot sells a row there instead. One slot, two modes, and the wrong one showing is the
+  // obvious way this breaks.
+  const slot = k => document.querySelector('#ishop [data-item="' + k + '"]');
+  // Measured, not read off a class list. There is no global `.hidden` rule in index.html --
+  // every other use is `#id.hidden` -- so both slots were on screen while the class said
+  // otherwise, and a class-only check passed the whole time.
+  const shown = k => slot(k).getBoundingClientRect().width > 0;
+  F.start('arcade'); await sleep(200);
+  chk('arcade shows 개간, not the basket', [shown('reclaim'), shown('basket')], [true, false]);
+  F.start('rush'); await sleep(200);
+  chk('rush shows the basket, not 개간', [shown('reclaim'), shown('basket')], [false, true]);
+  chk('...and cannot buy ground at all', F.itemAffordable('reclaim'), false);
+
+  // it really does add a row, it is capped, and the cap is the board's own maximum
+  F.start('arcade'); await sleep(200);
+  const rows0 = F.ROWS;
+  chk('a run starts on the base board', rows0, F.ROWS_BASE);
+  chk('no money, no ground', (F.coins = 0, F.itemAffordable('reclaim')), false);
+  F.coins = 9999; F.busy = false;
+  chk('one purchase is one row', (F.buyInstant('reclaim'), F.ROWS), rows0 + 1);
+  chk('...and it was paid for', F.coins < 9999, true);
+  for (let i = 0; i < 10; i++) { F.coins = 9999; F.busy = false; F.buyInstant('reclaim'); }
+  chk('it stops at the cap', F.rowsBought, F.RECLAIM_MAX);
+  chk('...which is exactly the board maximum', F.ROWS, F.ROWS_MAX);
+  chk('and the button goes dead there', F.itemAffordable('reclaim'), false);
+  // the ground must survive a recompute: everything else derived is rebuilt from scratch
+  F.applyRelics();
+  chk('bought ground survives a recompute', F.ROWS, F.ROWS_MAX);
+  // ...and must not follow the player into the next run
+  F.start('arcade'); await sleep(200);
+  chk('a new run starts from bare ground', [F.ROWS, F.rowsBought], [F.ROWS_BASE, 0]);
+
   document.title = 'RESULT ' + JSON.stringify({ fails, fast, slow });
  } catch (e) { document.title = 'THREW ' + (e && e.message) + '|' + String(e && e.stack || '').slice(0, 300); }
 }, 700));

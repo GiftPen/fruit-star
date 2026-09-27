@@ -604,6 +604,10 @@
   #ishop { display: flex; justify-content: center; gap: 6px; height: 54px; margin-top: 8px;
     width: 100%; max-width: 520px; padding: 0 4px; }
   #ishop.hidden { display: none; }
+  /* There is no global `.hidden` rule in this file -- every other use is `#id.hidden` --
+   * so a dock slot could carry the class and still be on screen. The mode swap was
+   * setting it correctly and showing both slots anyway. */
+  .ib.hidden { display: none; }
   .ib { margin: 0; flex: 1 1 0; min-width: 0; max-width: 62px;
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 2px; padding: 0; border-radius: 13px; border: 1px solid var(--slot-edge);
@@ -1401,6 +1405,7 @@
     <button class="ib" data-item="lineH"><span class="ib-ic">↔️</span><span class="ib-p"><i class="cn"></i>15</span></button>
     <button class="ib" data-item="lineV"><span class="ib-ic">↕️</span><span class="ib-p"><i class="cn"></i>15</span></button>
     <button class="ib" data-item="basket"><span class="ib-ic">🧺</span><span class="ib-p"><i class="cn"></i>22</span></button>
+    <button class="ib hidden" data-item="reclaim"><span class="ib-ic">🌾</span><span class="ib-p"><i class="cn"></i>50</span></button>
     <button class="ib" data-item="bomb"><span class="ib-ic">💣</span><span class="ib-p"><i class="cn"></i>30</span></button>
     <button class="ib" data-item="star"><span class="ib-ic">🌟</span><span class="ib-p"><i class="cn"></i>70</span></button>
   </div>
@@ -2498,6 +2503,7 @@
     stage = 1; stageScore = 0; touchesLeft = RUSH_TOUCHES;
     touchBonus = 0; spawnBonus = 0; slotBonus = 0; crackerChance = 0; offerBonus = 0;
     spawnBought = 0;                  // "영구" means for this run, so a new run starts at 0
+    rowsBought = 0;                   // ...and so does the ground you paid for
     chainStep = 0; coinFruitBonus = 0; starCoinMult = 1; payoutMult = 1;
     coinFlat = 0; coinToScore = 0; coinFlatPer = COIN_FLAT_PER; interestPer = 0; interestPct = 0; interestCap = INTEREST_CAP;
     crackerBonus = 0; crackerMult = 1; crackerCoin = 0; crackerBoom = false; crackerDouble = false; crackerEvery = false;
@@ -2731,6 +2737,7 @@
   let relicLife = {};                      // id -> charges left, for the ones that expire
   // derived from the owned relics -- never written directly, always recomputed by applyRelics()
   let touchBonus = 0, spawnBonus = 0, slotBonus = 0, crackerChance = 0, offerBonus = 0;
+  let rowsBought = 0;               // arcade: rows bought with coins, accumulated per run
   let spawnBought = 0;        // bought with coins. applyRelics() must never touch this
   // more knobs for relics to turn. All derived: applyRelics() resets them every recompute.
   // ---- coin economy ----
@@ -3353,6 +3360,7 @@
       tipItem_lineH: (p, sc) => `<b>가로줄</b> · ${p}코인<br>놓고 탭하면 그 가로줄을 전부 청소합니다. 발동 시 +${sc}점.`,
       tipItem_lineV: (p, sc) => `<b>세로줄</b> · ${p}코인<br>놓고 탭하면 그 세로줄을 전부 청소합니다. 발동 시 +${sc}점.`,
       tipItem_basket: (p) => `<b>과일 바구니</b> · ${p}코인<br>판에 과일을 한 번에 채웁니다. 판이 비어 다음 수가 없을 때 쓰세요.`,
+      tipItem_reclaim: (p) => `<b>개간</b> · ${p}코인<br>판을 한 줄 넓힙니다. 한 판에 4번까지, 놓을 자리가 아니라 땅을 사는 것입니다.`,
       tipItem_bomb: (p, sc) => `<b>폭탄</b> · ${p}코인<br>놓고 탭하면 주변을 통째로 날립니다. 발동 시 +${sc}점.`,
       tipItem_star: (p, sc) => `<b>별</b> · ${p}코인<br>놓고 탭하면 같은 색을 별자리로 이어 정리하고 코인을 떨굽니다. 발동 시 +${sc}점.`, tabRelics: "유물", tabTraits: "특성",
       traitPick: "특성 선택", doubleChip: "2배", myRelics: "내 유물", prep: "준비",
@@ -3775,6 +3783,7 @@
       tipItem_lineH: (p, sc) => `<b>Row</b> · ${p} coins<br>Place it and tap to clear its whole row. +${sc} when it fires.`,
       tipItem_lineV: (p, sc) => `<b>Column</b> · ${p} coins<br>Place it and tap to clear its whole column. +${sc} when it fires.`,
       tipItem_basket: (p) => `<b>Fruit Basket</b> · ${p} coins<br>Fills the board with fruit at once. For when there is nothing left to play.`,
+      tipItem_reclaim: (p) => `<b>Reclaim</b> · ${p} coins<br>Adds a row to the board. Four a run -- you are buying ground, not a piece.`,
       tipItem_bomb: (p, sc) => `<b>Bomb</b> · ${p} coins<br>Place it and tap to blow the area around it. +${sc} when it fires.`,
       tipItem_star: (p, sc) => `<b>Star</b> · ${p} coins<br>Place it and tap to link one colour into a constellation and drop coins. +${sc} when it fires.`, tabRelics: "Relics", tabTraits: "Traits",
       traitPick: "Pick a trait", doubleChip: "×2", myRelics: "My relics", prep: "",
@@ -4195,6 +4204,7 @@
       tipItem_lineH: (p, sc) => `<b>横ライン</b> · ${p}コイン<br>置いてタップするとその横一列を消します。発動時 +${sc}点。`,
       tipItem_lineV: (p, sc) => `<b>縦ライン</b> · ${p}コイン<br>置いてタップするとその縦一列を消します。発動時 +${sc}点。`,
       tipItem_basket: (p) => `<b>フルーツバスケット</b> · ${p}コイン<br>盤面にフルーツを一度に補充します。打つ手がないときに。`,
+      tipItem_reclaim: (p) => `<b>開墾</b> · ${p}コイン<br>盤面を一行広げます。1ゲーム4回まで。置き場ではなく土地を買います。`,
       tipItem_bomb: (p, sc) => `<b>爆弾</b> · ${p}コイン<br>置いてタップすると周囲を吹き飛ばします。発動時 +${sc}点。`,
       tipItem_star: (p, sc) => `<b>星</b> · ${p}コイン<br>置いてタップすると同じ色を星座でつなぎ、コインを落とします。発動時 +${sc}点。`, tabRelics: "レリック", tabTraits: "特性",
       traitPick: "特性を選ぶ", doubleChip: "×2", myRelics: "所持レリック", prep: "準備",
@@ -4616,6 +4626,7 @@
       tipItem_lineH: (p, sc) => `<b>横线</b> · ${p}金币<br>放置后点击，清除整行。发动时 +${sc}分。`,
       tipItem_lineV: (p, sc) => `<b>竖线</b> · ${p}金币<br>放置后点击，清除整列。发动时 +${sc}分。`,
       tipItem_basket: (p) => `<b>水果篮</b> · ${p}金币<br>一次性把水果补满棋盘。没有可下之处时使用。`,
+      tipItem_reclaim: (p) => `<b>开垦</b> · ${p}金币<br>把棋盘扩大一行。每局最多 4 次，买的是地不是棋子。`,
       tipItem_bomb: (p, sc) => `<b>炸弹</b> · ${p}金币<br>放置后点击，炸开周围一片。发动时 +${sc}分。`,
       tipItem_star: (p, sc) => `<b>星星</b> · ${p}金币<br>放置后点击，把同色连成星座并掉落金币。发动时 +${sc}分。`, tabRelics: "遗物", tabTraits: "特性",
       traitPick: "选择特性", doubleChip: "×2", myRelics: "我的遗物", prep: "准备",
@@ -5552,7 +5563,7 @@
   // the bottom rows -- so this grows toward the target and stops. Losing a 개간 relic to the
   // slot cap leaves the land you already cleared.
   function syncRows() {
-    let want = ROWS_BASE;
+    let want = ROWS_BASE + rowsBought;   // bought ground is accumulated, not derived
     for (const id of activeRelics()) want += (RELICS[id] && RELICS[id].rows) || 0;
     for (const t of traits) {
       const T = TRAITS[t.id]; if (!T) continue;
@@ -6637,8 +6648,13 @@
   // same rule the game already uses for tapping an item that is already on the board.
   // A row and a column are separate purchases: buying "a line" and being handed whichever
   // one the dice picked is not a decision. 십자로 still upgrades either to a cross.
-  const ITEM_PRICES = { bird: 10, lineH: 15, lineV: 15, basket: 22, bomb: 30, star: 70 };
+  const ITEM_PRICES = { bird: 10, lineH: 15, lineV: 15, basket: 22, reclaim: 50, bomb: 30, star: 70 };
   const BASKET_FRUIT = 12;     // how many fruit a 과일 바구니 drops
+  // Arcade sells ground instead of fruit. The basket buys a turn back, which is a rush
+  // problem -- a stage emptied by an item takes turns to refill. Arcade never runs out of
+  // fruit, it runs out of ROOM, so the thing worth 50 coins there is another row.
+  // Four is the cap because ROWS_BASE + 4 is ROWS_MAX: the board can hold exactly that.
+  const RECLAIM_MAX = ROWS_MAX - ROWS_BASE;
   let armedItem = null, wasDanger = false;
   const DANGER_ON = 0.85;    // the board is in trouble
   const DANGER_OFF = 0.76;   // ...and this much has to clear before it can warn again
@@ -6647,7 +6663,23 @@
   // single touch made all six buttons fade and snap back. The board cannot be tapped while
   // busy anyway (the canvas handler returns early), so nothing was being protected by the
   // flicker; it only told the player their items kept vanishing.
+  // Ground is not placed on a cell, so it is bought outright rather than armed. Arming an
+  // item that has nowhere to go would leave the player tapping the board for no reason.
+  const INSTANT_ITEMS = { reclaim: true };
+  function buyInstant(kind) {
+    if (!itemAffordable(kind) || busy) return false;
+    coins -= itemPrice(kind); coinsShown = coins;
+    coinsSpent += itemPrice(kind);
+    SFX.play("buy");
+    if (kind === "reclaim") { rowsBought++; syncRows(); layout(); }
+    dirty = true; renderItemShop(); updateHUD();
+    return true;
+  }
   function itemAffordable(kind) {
+    // ground needs money and a cap, not room: it MAKES room
+    if (kind === "reclaim")
+      return running && !paused && rules().scaleWithScore
+             && rowsBought < RECLAIM_MAX && coins >= itemPrice(kind);
     // the basket needs somewhere to put its fruit AND a cell to leave open: bought on the last
     // free cell it fills it with its own ball, so 22 coins bought the end of the run
     const need = kind === "basket" ? 2 : 1;
@@ -6702,7 +6734,12 @@
     const bar = document.getElementById("ishop");
     if (!bar) return;
     paintItemIcons();
+    // the two modes want different things for their fifty coins, so they get different slots
+    const arcade = rules().scaleWithScore;
+    bar.querySelector('[data-item="basket"]').classList.toggle("hidden", arcade);
+    bar.querySelector('[data-item="reclaim"]').classList.toggle("hidden", !arcade);
     for (const b of bar.querySelectorAll(".ib")) {
+      if (b.classList.contains("hidden")) continue;
       const kind = b.dataset.item;
       // greyed by money and room only -- not by the animation that is still playing
       const affordable = itemAffordable(kind);
@@ -6716,7 +6753,8 @@
     else if (h.textContent === d("hintArmed")) h.textContent = "";
   }
   for (const b of document.querySelectorAll("#ishop .ib"))
-    b.addEventListener("click", () => armItem(b.dataset.item));
+    b.addEventListener("click", () => INSTANT_ITEMS[b.dataset.item]
+      ? buyInstant(b.dataset.item) : armItem(b.dataset.item));
 
   // ---- test item dock: place items freely without spending a turn ----
   let selectedItem = null;
@@ -10624,6 +10662,7 @@
       resetRun, serializeRun, restoreRun, FRUIT_POINTS, COLS,
       MODES, activeColors, spawnCount, crackerLevel, computeMaxLevel,
       crackerGap, crackerCount, LEVEL_AT, CRACKER_EVERY, CRACKER_MIN, CRACKER_PAIR_LEVEL,
+      RECLAIM_MAX, buyInstant, get rowsBought() { return rowsBought; }, itemAffordable,
       levelGain, level, milestone, LEVELUP_MS,
       get levelFx() { return levelFx; }, set levelFx(v) { levelFx = v; },
       get MAX_LEVEL() { return MAX_LEVEL; },
