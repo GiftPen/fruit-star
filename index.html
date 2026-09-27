@@ -6359,6 +6359,12 @@
     // The fundamental is always the first call: voices are claimed in order and the accent
     // budget can run out mid-cluster, so what survives has to be the note itself.
     const COMBO_STYLES = {
+      // Off by default, and a real choice rather than a deleted call. Tried in play, the
+      // streak accent was the one cue that did not belong: the pops carry the event and the
+      // cluster's thud carries its size, and a third voice on top of both was noise. The
+      // styles stay because the axis may want a sound again -- ?combo=1 brings them back
+      // without a code change, and nothing here rots in the meantime.
+      none: { name: "없음", play() {} },
       body: { name: "묵직", play(f, n, grow) {
         // Two octaves below where the accent used to sit. A streak is felt, not heard over
         // the top -- the pops own the mid and high, so the accent takes the floor. It still

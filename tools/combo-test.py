@@ -60,9 +60,14 @@ window.addEventListener('load', () => setTimeout(async () => {
     proto.createOscillator = real; proto.createBufferSource = realBuf;
     return made;
   };
+  // Against a named sounding style, not whatever is shipped: the accent is switched off by
+  // default right now, and "a silent style gains no voice at the chord" is not a bug.
+  const wasStyle0 = S.comboStyle;
+  S.setComboStyle('body');
   const vBase = countTones(0);
   const vChord = countTones(S.COMBO_CHORD);
   const vFlour = countTones(S.COMBO_FLOURISH);
+  S.setComboStyle(wasStyle0);
   chk('the plain accent makes a sound at all', vBase >= 1, true);
   chk('it gains a voice at the chord threshold', vChord > vBase, true);
   chk('and another at the flourish threshold', vFlour > vChord, true);
@@ -106,7 +111,10 @@ window.addEventListener('load', () => setTimeout(async () => {
     return heard.slice();
   };
   const was = S.comboStyle;
-  for (const k of S.COMBO_KEYS) {
+  const SOUNDING = S.COMBO_KEYS.filter(k => k !== 'none');
+  chk('there is a silent option and it really is silent',
+      (await voicesOf('none', 4)).length, 0);
+  for (const k of SOUNDING) {
     const v = await voicesOf(k, 1);
     chk(k + ': the accent is audible at all', v.length > 0, true);
     // Octave-related to the streak note, not equal to it: the shipped accent plays two
@@ -116,20 +124,21 @@ window.addEventListener('load', () => setTimeout(async () => {
   }
   // the default must not be the flat one, or nothing changed for anybody
   chk('the shipped default is not the old beeper', was === 'old', false);
-  // The complaint that prompted this: "콤보는 소리가 너무 튀어요 혼자 따로 노는 느낌". It was
-  // climbing to 2.2kHz over pops that own the mid and high, with nothing holding the bottom.
-  // An accent belongs UNDER what it accents.
-  chk('the shipped accent sits below the pops',
-      Math.min(...(await voicesOf(was, 4))) < S.popHz(0, 0), true);
-  const rich = await voicesOf(S.COMBO_KEYS[0], 1), flat = await voicesOf('old', 1);
-  chk('the default has partials the old one did not', rich.length > flat.length, true);
+  // "콤보는 소리가 너무 튀어요 혼자 따로 노는 느낌" -- it was climbing to 2.2kHz over pops
+  // that own the mid and high. Played with, the axis turned out not to want a voice at all,
+  // so the shipped setting is silence; 묵직 is what it would come back as, and it has to
+  // stay under what it accents.
+  chk('the shipped accent is silent for now', was, 'none');
+  chk('묵직 sits below the pops', Math.min(...(await voicesOf('body', 4))) < S.popHz(0, 0), true);
+  const rich = await voicesOf('bell', 1), flat = await voicesOf('old', 1);
+  chk('종 has partials the old beeper did not', rich.length > flat.length, true);
   // Detuning is 종's technique for sounding struck, not a law every style must obey -- the
   // shipped accent earns its place by sitting low instead. Check it where it IS the point.
   const bell = await voicesOf('bell', 1);
   chk('종 shimmers: two voices a few cents apart',
       bell.some(a => bell.some(b => a !== b && Math.abs(a / b - 1) < 0.02)), true);
   // and the whole point of the ladder: a later streak is a higher note, in every style
-  for (const k of S.COMBO_KEYS) {
+  for (const k of SOUNDING) {
     const hi = await voicesOf(k, 4), lo = await voicesOf(k, 1);
     chk(k + ': a longer streak is a higher note', Math.min(...hi) > Math.min(...lo), true);
   }
