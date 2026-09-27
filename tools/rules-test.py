@@ -148,6 +148,32 @@ window.addEventListener('load', () => setTimeout(() => {
     F.relics = []; F.traits = []; F.applyRelics(); F.resetRun();
   })();
   if (F.computeMaxLevel() !== 10) modeFails.push({knob:'MAX_LEVEL', got:F.computeMaxLevel(), want:10});
+
+  // ---- the staged cycle has no dead rungs ----
+  // The cycle is cracker -> +1 colour -> +1 spawn, repeating. When crackers were flattened to
+  // "unlocked, one hit, always" the cracker rung stopped changing anything, so Lv.5 and Lv.8
+  // were identical to the level below: the chip counted up and the game did not get harder.
+  // Crackers hold that rung by ARRIVING OFTENER instead -- 5 touches, then 4, then 3.
+  const knobs = m => [A.colors(m), A.spawns(m), A.crackerOn(m), A.crackerGap(m)].join('/');
+  for (let lv = 2; lv <= F.MAX_LEVEL; lv++) {
+    const m = lv - 1;
+    if (knobs(m) === knobs(m - 1))
+      modeFails.push({knob:'dead level', lv, got:knobs(m), want:'anything different from Lv.' + (lv-1)});
+  }
+  // the gap tightens on the cracker rung and nowhere else, and it stops at the floor
+  const refGap = m => Math.max(F.CRACKER_MIN, F.CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3));
+  for (let m = 0; m <= 40; m++)
+    if (A.crackerGap(m) !== refGap(m))
+      modeFails.push({m, knob:'crackerGap', got:A.crackerGap(m), want:refGap(m)});
+  if (A.crackerGap(99) !== F.CRACKER_MIN)
+    modeFails.push({knob:'crackerGap floor', got:A.crackerGap(99), want:F.CRACKER_MIN});
+  // rush crackers come from relics, so their pace is the base one, not the arcade ladder
+  if (R.crackerGap(30) !== F.CRACKER_EVERY)
+    modeFails.push({knob:'rush.crackerGap', got:R.crackerGap(30), want:F.CRACKER_EVERY});
+  // MAX_LEVEL is derived from where every knob caps -- it has to count this one, or adding a
+  // rung silently leaves the top level unreachable
+  if (F.computeMaxLevel() < 8)
+    modeFails.push({knob:'MAX_LEVEL counts the cracker pace', got:F.computeMaxLevel(), want:'>= 8'});
   // Verify the SHAPE of the quota curve, not the tuning: these numbers are meant to be
   // changed by feel, and a test that pins them just has to be edited every time.
   // The opening stages are a hand-set table now -- readable goals like 1,000 rather than
