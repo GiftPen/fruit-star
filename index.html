@@ -2524,6 +2524,7 @@
     grid = layer(-1); special = layer(null); hp = layer(0);
     coinCell = layer(0); sprouted = layer(0); eroded = layer(0); erodeStep = 0;
     glow = layer(null); appear = layer(0); ghost = layer(null); ghostAt = layer(0);   // display-only layers
+    // every one of the above is a per-cell layer; allLayers() must list them all
     nextColor = null; nextColor2 = null;   // null queue -> pickNext refills both slots
     score = 0; streak = 0; touchCount = 0;
     stage = 1; stageScore = 0; touchesLeft = RUSH_TOUCHES;
@@ -5588,6 +5589,12 @@
   // be recomputed from scratch, but shrinking the board would delete whatever is standing on
   // the bottom rows -- so this grows toward the target and stops. Losing a 개간 relic to the
   // slot cap leaves the land you already cleared.
+  // Every array with one entry per CELL, in one place and one order. Anything that grows or
+  // rebuilds the board walks this; a layer left out of it is a crash on the rows that the
+  // board grew into, far from wherever the layer was added.
+  const allLayers = () => [grid, special, hp, coinCell, sprouted, eroded, glow, appear, ghost, ghostAt];
+  const LAYER_FILL = [-1, null, 0, 0, 0, 0, null, 0, null, 0];
+
   function syncRows() {
     let want = ROWS_BASE + rowsBought;   // bought ground is accumulated, not derived
     for (const id of activeRelics()) want += (RELICS[id] && RELICS[id].rows) || 0;
@@ -5597,8 +5604,11 @@
     }
     want = Math.max(ROWS_BASE, Math.min(ROWS_MAX, want));
     if (want === ROWS) return false;
-    const LAYERS = [[grid,-1],[special,null],[hp,0],[coinCell,0],
-                    [sprouted,0],[glow,null],[appear,0],[ghost,null]];
+    // Built from the one list, not written out again here. This WAS a second hand-kept list
+    // and it was missing ghostAt and eroded: 개간 grew the board to ten rows, ghostAt stayed
+    // at eight, and the first fruit doomed on a new bottom row made draw() read ghostAt[8][c]
+    // -- undefined -- which killed the render loop and froze the game outright.
+    const LAYERS = allLayers().map((l, i) => [l, LAYER_FILL[i]]);
     // cell size comes from the width alone, so every existing r/c -> pixel mapping survives
     // a row being appended or dropped; only the canvas changes height
     while (ROWS < want) {
@@ -10736,7 +10746,7 @@
       get starCoinMult() { return starCoinMult; }, get payoutMult() { return payoutMult; },
       bombRadius, BOMB_RADIUS_MAX, itemNeed, ITEM_NEED_MIN,
       gridMult, MULT_GRID, STREAK_STEP_BASE, CHAIN_STEP, multLabel,
-      syncRows, ROWS_BASE, ROWS_MAX, layout, COLS, BOARD_MIN, BOARD_MAX,
+      syncRows, ROWS_BASE, ROWS_MAX, layout, COLS, BOARD_MIN, BOARD_MAX, allLayers, LAYER_FILL,
       checkViewport, MIN_PLAY_H, insets, usableH, usableW,
       isWide, applyWide, WIDE_MIN_W, WIDE_RATIO, WIDE_MIN_H, WIDE_MIN_H_TOUCH,
       wideMinH, coarsePointer, railPx, wideChromeH,

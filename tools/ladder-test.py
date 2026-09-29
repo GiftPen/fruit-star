@@ -256,6 +256,38 @@ window.addEventListener('load', () => setTimeout(async () => {
   // the ground must survive a recompute: everything else derived is rebuilt from scratch
   F.applyRelics();
   chk('bought ground survives a recompute', F.ROWS, F.ROWS_MAX);
+
+  // ---- every per-cell layer grows with the board ----
+  // Reported from the phone: a line item fired and the game stopped dead. syncRows kept its
+  // OWN hand-written list of layers and it was missing ghostAt (added later, for the squash
+  // wind-up) and eroded. One 개간 took the board to nine rows, ghostAt stayed at eight, and
+  // the first fruit doomed on the new bottom row made draw() read ghostAt[8][c] -- undefined.
+  // That throws inside the render loop, so the whole game freezes rather than misdrawing.
+  chk('every layer is as tall as the board',
+      F.allLayers().filter(l => !l || l.length !== F.ROWS).length, 0);
+  chk('...and the fill list covers all of them', F.LAYER_FILL.length, F.allLayers().length);
+  chk('every row of every layer is as wide as the board',
+      F.allLayers().filter(l => l.some(row => !row || row.length !== F.COLS)).length, 0);
+
+  // ...and end to end, the way it was actually hit: a length check passes on any layer that
+  // nothing writes to, and burst() is only the visual -- ghostAt is written when a fruit is
+  // MARKED to pop, which happens inside a real turn. So play one, on the row the board grew
+  // into, and let draw() run over it.
+  {
+    let threw = null;
+    const onerr = e => { threw = (e.error && e.error.message) || e.message; };
+    window.addEventListener('error', onerr);
+    for (let rr = 0; rr < F.ROWS; rr++) for (let cc = 0; cc < F.COLS; cc++) {
+      F.grid[rr][cc] = -1; F.special[rr][cc] = null; F.appear[rr][cc] = 0;
+    }
+    const r = F.ROWS - 1;                       // the bottom row only 개간 can create
+    F.grid[r][0] = 0; F.grid[r][2] = 0;
+    F.nextColor = 0; F.busy = false;
+    tap(r, 1);                                  // completes a three, so all three are doomed
+    for (let i = 0; i < 40 && !threw; i++) { F.dirty = true; F.draw(); await sleep(25); }
+    window.removeEventListener('error', onerr);
+    chk('a pop on the new bottom row does not kill the render loop', threw, null);
+  }
   // ...and must not follow the player into the next run
   F.start('arcade'); await sleep(200);
   chk('a new run starts from bare ground', [F.ROWS, F.rowsBought], [F.ROWS_BASE, 0]);
