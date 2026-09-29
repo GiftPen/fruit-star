@@ -117,11 +117,11 @@ SCREENS = {
             " F.updateHUD(); D.getElementById('rs-spawn-chip').click();"),
   # the ARCADE odds popup, at a score high enough that the cracker pace has stepped down --
   # the table has to show the rate you are actually playing at, not the constant it starts on
-  'oddsA': ("D.getElementById('btn-arcade').click(); F.score = 100000; F.updateHUD();"
+  'oddsA': ("D.getElementById('btn-arcade').click(); F.score = 200000; F.updateHUD();"
             " D.getElementById('info-btn').click();"
             " setTimeout(() => { const b = D.getElementById('info-body');"
-            " const row=[...b.querySelectorAll('.st-row,.ft-row')]"
-            "   .find(e=>e.textContent.includes('크래커'));"
+            " const row=[...b.querySelectorAll('.ftab-row')]"
+            "   .find(e=>e.textContent.includes('멜론'));"
             " if(row) row.scrollIntoView({block:'center'}); }, 200);"),
   # the odds popup's stat table, scrolled to the item thresholds
   'odds':  ("D.getElementById('btn-challenge').click(); D.getElementById('info-btn').click();"

@@ -83,9 +83,14 @@ window.addEventListener('load', () => setTimeout(async () => {
   // fruit. 멜론 is the eighth, so that rung is a colour rung again and nothing comes in pairs
   // -- counted at the board, because the turn loop still calls spawnCracker in a loop and a
   // loop that runs twice looks exactly like one that runs once until you count what lands.
-  const top = await paceAt(F.MAX_LEVEL, 6);
+  // Derived from the rule, not written out: the tightest pace was every two touches until
+  // Lv.15 took it to every one, and a hardcoded [2,4,6] just goes stale the next time the
+  // ladder is retuned. What is being checked is the SHAPE -- one at a time, on the beat.
+  const topGap = F.crackerGap(F.MAX_LEVEL - 1);
+  const top = await paceAt(F.MAX_LEVEL, topGap * 3);
   chk('even the last level drops one at a time', top.map(x => x.by), [1, 1, 1]);
-  chk('...on the tightest pace the ladder reaches', touchesOf(top), [2, 4, 6]);
+  chk('...on the tightest pace the ladder reaches',
+      touchesOf(top), [topGap, topGap * 2, topGap * 3]);
 
   // ---- crossing a rung has to SAY what it did ----
   // A level that changes something invisible is a number going up for no reason. Every rung

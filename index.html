@@ -1417,8 +1417,8 @@
     <button class="ib" data-item="lineH"><span class="ib-ic">↔️</span><span class="ib-p"><i class="cn"></i>15</span></button>
     <button class="ib" data-item="lineV"><span class="ib-ic">↕️</span><span class="ib-p"><i class="cn"></i>15</span></button>
     <button class="ib" data-item="basket"><span class="ib-ic">🧺</span><span class="ib-p"><i class="cn"></i>22</span></button>
-    <button class="ib hidden" data-item="reclaim"><span class="ib-ic">🌾</span><span class="ib-p"><i class="cn"></i>50</span></button>
     <button class="ib" data-item="bomb"><span class="ib-ic">💣</span><span class="ib-p"><i class="cn"></i>30</span></button>
+    <button class="ib hidden" data-item="reclaim"><span class="ib-ic">🌾</span><span class="ib-p"><i class="cn"></i>50</span></button>
     <button class="ib" data-item="star"><span class="ib-ic">🌟</span><span class="ib-p"><i class="cn"></i>70</span></button>
   </div>
   <div id="tiptop" class="hidden"></div>
@@ -1594,7 +1594,7 @@
   // the one build that dies of a full board -- it is paid for the risk in base points)
   // x10 scale on purpose: it lets every stacking relic move a fruit by a WHOLE number.
   // At the old 1..5 scale a stack had to read "+0.05", which nobody can follow on a board.
-  const FRUIT_POINTS = [10, 20, 20, 10, 30, 30, 60, 30];
+  const FRUIT_POINTS = [10, 20, 20, 10, 30, 30, 60, 100];
   // One array per fruit, always exactly as long as COLORS. Every one of these was written
   // out as seven literals, which is a silent `undefined` the day an eighth fruit arrives.
   const perFruit = v => new Array(COLORS.length).fill(v);
@@ -1615,7 +1615,7 @@
   // Arcade's curve stops here. Rush does NOT read it: rush spawns a flat base plus whatever
   // relics and traits add, so this number is an arcade knob only -- raising it adds arcade
   // difficulty levels (MAX_LEVEL is computed from where the knobs cap) and nothing else.
-  const SPAWN_MAX = 5;
+  const SPAWN_MAX = 6;
   // one staged difficulty step per rung of LEVEL_AT, cycling:
   //   cracker -> +1 colour -> +1 spawn -> cracker -> ...
   // ...until the colours run out. The fourth cycle's colour rung pays in crackers instead.
@@ -1625,7 +1625,7 @@
   // gives the ladder a real ceiling -- a plain score/STEP counter climbs forever and every
   // knob hanging off it needs its own clamp.
   const LEVEL_AT = [0, 5000, 10000, 15000, 20000, 25000, 30000,
-                    40000, 50000, 60000, 70000, 85000, 100000];
+                    40000, 50000, 60000, 70000, 85000, 100000, 150000, 200000];
   let MAX_LEVEL = 10;          // auto-computed at boot from where every difficulty knob caps
   const WAVE_STEP_MS = 83;     // time between chain steps (rings)
   // ---- cluster payoff tiers ----
@@ -1768,7 +1768,17 @@
   // left one slot in every three doing nothing: Lv.5 and Lv.8 were identical to the level
   // below them. Crackers take the slot back by arriving OFTENER -- 5 touches, then 4, then 3
   // -- which is pressure without anything to grind down.
-  const CRACKER_MIN = 2;         // ...and no tighter than this
+  // Two floors, not one. The cycle plateaus at a cracker every two touches for the middle
+  // of the ladder; the very last rung takes it to every single touch, which is the harshest
+  // thing this game can do and belongs at the end and nowhere else.
+  const CRACKER_PLATEAU = 2;
+  const CRACKER_MIN = 1;
+  // Past Lv.12 the colours are gone -- there is no ninth fruit -- so the three-rung cycle has
+  // only two knobs left and the arithmetic would hand them over in the wrong order. These two
+  // are placed by hand, gentler first: another fruit a turn, and only then a cracker every
+  // touch. m is level-1.
+  const LATE_SPAWN_AT = 13;      // Lv.14
+  const LATE_GAP_AT   = 14;      // Lv.15
   const CRACKER_SCORE = 100;   // what breaking one is worth, before relics
   // 크래커 왕's growth, kept apart from the base: how much a cracker is worth and how fast
   // the legendary grows it are two decisions, and tying them together hides one of them.
@@ -2693,12 +2703,14 @@
       touchBudget: false,                                   // no touch limit; play till the board fills
       odds:    () => null,                                  // uniform, as arcade has always been
       colors:  m => Math.min(MAX_COLORS, BASE_COLORS + Math.floor((m + 1) / 3)),
-      spawns:  m => Math.min(SPAWN_MAX, SPAWN_BASE + Math.floor(m / 3)),
+      spawns:  m => Math.min(SPAWN_MAX, SPAWN_BASE + Math.floor(m / 3)
+                                       + (m >= LATE_SPAWN_AT ? 1 : 0)),
       // one hit, always. Three HP states made the obstacle a chore to grind down and the
       // art carry three versions of itself; a cracker either survives the turn or it does not.
       crackerOn: m => (m >= 1 ? 1 : 0),
       // ...so the cracker step is a shorter gap instead: 5 touches, then 4 at Lv.5, 3 at Lv.8
-      crackerGap: m => Math.max(CRACKER_MIN, CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3)),
+      crackerGap: m => Math.max(m >= LATE_GAP_AT ? CRACKER_MIN : CRACKER_PLATEAU,
+                                CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3)),
       // the one knob that pays the player back for climbing
       coinFruit: m => COIN_FRUIT_CHANCE + COIN_FRUIT_STEP * Math.min(m, MAX_LEVEL - 1),
       crackerCount: () => 1,
@@ -7883,8 +7895,11 @@
       if (e.stat === "doubles") doubles += e.amount;
       else if (e.stat === "stackAll") for (let i = 0; i < fruitStack.length; i++) fruitStack[i] += e.amount;
       else if (e.stat === "boostBest") {
+        // Only among the fruit that can actually turn up. The table is eight long now and
+        // 멜론 is the priciest in it, but it is arcade-only -- scanning the whole table aimed
+        // this at a fruit that never spawns here, so the card did nothing at all.
         let best = 0;
-        for (let i = 1; i < FRUIT_POINTS.length; i++) if (fruitScore(i) > fruitScore(best)) best = i;
+        for (let i = 1; i < activeColors(); i++) if (fruitScore(i) > fruitScore(best)) best = i;
         fruitBoost[best] *= e.amount;
       }
     }
@@ -7899,7 +7914,9 @@
   const fruitName = i => (L("_fruit") || FRUIT_KO)[i];   // follows the language
   // slot order is historical (0체리 1오렌지 2키위 3레몬 …); the table reads better grouped by
   // points, so cherry and lemon sit together at 1점 and orange and kiwi at 2점
-  const FRUIT_TABLE_ORDER = [0, 3, 1, 2, 4, 5, 6];
+  // Cheapest first, so the table reads as a ladder. Another list that was written out at
+  // length seven: 멜론 was live on the board and missing from the panel entirely.
+  const FRUIT_TABLE_ORDER = [0, 3, 1, 2, 4, 5, 6, 7];
   function fruitIconEl(i) {                    // the real board art, not an emoji stand-in
     const im = document.createElement("img");
     im.className = "inf-fruit";
@@ -10711,6 +10728,7 @@
       resetRun, serializeRun, restoreRun, FRUIT_POINTS, COLS,
       MODES, activeColors, spawnCount, crackerLevel, computeMaxLevel,
       crackerGap, crackerCount, LEVEL_AT, CRACKER_EVERY, CRACKER_MIN, MAX_COLORS, RUSH_COLORS,
+      FRUIT_TABLE_ORDER, SPAWN_MAX, CRACKER_PLATEAU, LATE_SPAWN_AT, LATE_GAP_AT,
       get FRUIT_SVG() { return FRUIT_SVG; },
       RECLAIM_MAX, buyInstant, get rowsBought() { return rowsBought; }, itemAffordable,
       levelGain, level, milestone, LEVELUP_MS,

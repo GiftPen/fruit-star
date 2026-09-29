@@ -116,7 +116,7 @@ window.addEventListener('load', () => setTimeout(() => {
   // arcade knobs must still match the formulas they were hardcoded as before the table
   const modeFails = [];
   const refColors  = m => Math.min(8, 4 + Math.floor((m + 1) / 3));
-  const refSpawns  = m => Math.min(5, 1 + Math.floor(m / 3));
+  const refSpawns  = m => Math.min(F.SPAWN_MAX, 1 + Math.floor(m / 3) + (m >= F.LATE_SPAWN_AT ? 1 : 0));
   // one hit, always: the obstacle is a cracker now, not a wall to grind down
   const refCrackerOn = m => (m >= 1 ? 1 : 0);
   const A = F.MODES.arcade, R = F.MODES.rush;
@@ -149,7 +149,7 @@ window.addEventListener('load', () => setTimeout(() => {
     if (F.spawnCount(0) !== withRelic) modeFails.push({knob:'rush spawn unrelated trait', got:F.spawnCount(0), want:withRelic});
     F.relics = []; F.traits = []; F.applyRelics(); F.resetRun();
   })();
-  if (F.computeMaxLevel() !== 13) modeFails.push({knob:'MAX_LEVEL', got:F.computeMaxLevel(), want:13});
+  if (F.computeMaxLevel() !== 15) modeFails.push({knob:'MAX_LEVEL', got:F.computeMaxLevel(), want:15});
   // The ladder ends where LEVEL_AT ends -- that table IS the ceiling, so a level with no
   // score to reach it, or a score with no level, is a silent mismatch.
   if (F.LEVEL_AT.length !== F.MAX_LEVEL)
@@ -192,6 +192,12 @@ window.addEventListener('load', () => setTimeout(() => {
       modeFails.push({knob:'MAX_COLORS matches the palette', got:F.MAX_COLORS, want:N});
     if (F.BASE_ODDS.length !== F.RUSH_COLORS)
       modeFails.push({knob:'BASE_ODDS is rush-length', got:F.BASE_ODDS.length, want:F.RUSH_COLORS});
+    // The odds panel walks its own order list, so a fruit missing from it is live on the
+    // board and absent from the one screen that explains the board. 멜론 was, for a day.
+    const ord = [...F.FRUIT_TABLE_ORDER].sort((a, b) => a - b).join(',');
+    if (ord !== [...Array(N).keys()].join(','))
+      modeFails.push({knob:'the odds table lists every fruit exactly once',
+                      got:F.FRUIT_TABLE_ORDER.join(','), want:'a permutation of 0..' + (N-1)});
   }
 
   // ---- the staged cycle has no dead rungs ----
@@ -206,8 +212,31 @@ window.addEventListener('load', () => setTimeout(() => {
     if (knobs(m) === knobs(m - 1))
       modeFails.push({knob:'dead level', lv, got:knobs(m), want:'anything different from Lv.' + (lv-1)});
   }
+  // The last two rungs are placed by hand -- past the colour cap the cycle has only two knobs
+  // left and the arithmetic hands them over in the wrong order -- so the ORDER is a decision,
+  // and nothing else here would notice it being swapped. A cracker every single touch is the
+  // harshest thing the ladder can do and the board is cleared of crackers by items alone; it
+  // belongs at the very end, with the extra fruit a turn arriving before it.
+  {
+    const last = F.MAX_LEVEL - 1, prev = last - 1;
+    if (!(A.spawns(prev) > A.spawns(prev - 1) && A.crackerGap(prev) === A.crackerGap(prev - 1)))
+      modeFails.push({knob:'second-to-last rung is the extra fruit',
+                      got:'spawns ' + A.spawns(prev - 1) + '->' + A.spawns(prev) +
+                          ', gap ' + A.crackerGap(prev - 1) + '->' + A.crackerGap(prev),
+                      want:'spawns up, gap unchanged'});
+    if (!(A.crackerGap(last) < A.crackerGap(last - 1) && A.spawns(last) === A.spawns(last - 1)))
+      modeFails.push({knob:'last rung is the cracker',
+                      got:'spawns ' + A.spawns(last - 1) + '->' + A.spawns(last) +
+                          ', gap ' + A.crackerGap(last - 1) + '->' + A.crackerGap(last),
+                      want:'gap down, spawns unchanged'});
+    if (A.crackerGap(last) !== 1)
+      modeFails.push({knob:'the ladder ends on a cracker every touch', got:A.crackerGap(last), want:1});
+  }
+
   // the gap tightens on the cracker rung and nowhere else, and it stops at the floor
-  const refGap = m => Math.max(F.CRACKER_MIN, F.CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3));
+  // two floors: the cycle plateaus at every two touches, and only the last rung goes to one
+  const refGap = m => Math.max(m >= F.LATE_GAP_AT ? F.CRACKER_MIN : F.CRACKER_PLATEAU,
+                               F.CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3));
   for (let m = 0; m <= 40; m++)
     if (A.crackerGap(m) !== refGap(m))
       modeFails.push({m, knob:'crackerGap', got:A.crackerGap(m), want:refGap(m)});
