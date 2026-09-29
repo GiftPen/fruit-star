@@ -124,6 +124,20 @@ const worstCase = F => { F.start('arcade'); F.score = 1626000000; F.best = 16260
     chk(w + 'px: the cells are equal shares',
         [...new Set(big.map(g => g[1]))].length, 1);
 
+    // The combo badge comes and goes with the streak, and anything that appears and
+    // disappears must not be free to RESIZE. `min-height: 22px` stopped it collapsing but
+    // not growing: lit, the 🔥 sits on a taller line box than the digits and the badge went
+    // 22 -> 24, stepping the whole board down 2px every time a combo started and back up
+    // every time one broke. On a phone that reads as the screen twitching.
+    const boardTop = () => Math.round(D.getElementById('game').getBoundingClientRect().top);
+    F.streak = 0; F.updateStreakBadge();
+    const calm = boardTop();
+    F.streak = 6; F.updateStreakBadge();
+    const combo = boardTop();
+    F.streak = 0; F.updateStreakBadge();
+    chk(w + 'px: a combo starting does not move the board', combo, calm);
+    chk(w + 'px: ...and breaking puts it back', boardTop(), calm);
+
     // 확률 only ever got its row layout from `#stats #info-btn`, so moving it back up top
     // dropped it to display:block and stacked its fruit above its word -- at every width.
     const ic = D.getElementById('odds-ic').getBoundingClientRect();

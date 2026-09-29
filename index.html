@@ -455,6 +455,12 @@
   body.rush-chrome #np-next { width: 25px; height: 25px; }
   /* the combo speaks at the score's size, immediately to its left */
   #streak-badge2 { font-size: inherit; font-weight: 800; margin-right: 6px; }
+  /* 스타 러시 keeps its badge INSIDE the score line, so when it lights the 🔥 raises that
+     line's box from 15px to 20px and the band and the board below it step down. Arcade's
+     badge is its own row and was pinned there; this reserves the taller height here instead,
+     because clipping to 15 would cut the emoji. Measured at 375px: 1px of board movement
+     every time a combo started or broke. */
+  #rush-box .best-line { height: 20px; }
   .sb-in { display: inline-block; }
   #odds-ic { width: 17px; height: 17px; display: block; }
   /* the same chip as 확률: one strip, one height, three doors */
@@ -560,9 +566,15 @@
   .gain-pop .gp-chain { color: #9fd6ff; border: 1px solid rgba(90,160,255,.55); }
   .gain-pop .gp-combo { color: #ffcaa0; border: 1px solid rgba(255,140,60,.6); }
   /* fixed height reserved always -> toggling never reflows the board (no up/down jump) */
+  /* A FIXED height, not a minimum. The badge comes and goes with the streak, and `min-height`
+     only stops it collapsing -- it still grew to 24px when it lit, because the 🔥 sits on a
+     taller line box than the digits do. Measured at 375px that moved the board 2px down every
+     time a combo started and back up every time one broke, which on a phone reads as the
+     screen twitching. Nothing that appears and disappears may be free to resize. */
   #streak-badge {
     display: inline-flex; align-items: center; justify-content: center;
-    min-height: 22px; margin-top: 5px; font-size: 12px; font-weight: 800;
+    height: 24px; line-height: 1; overflow: hidden;
+    margin-top: 5px; font-size: 12px; font-weight: 800;
   }
   #streak-badge.on {
     padding: 1px 9px; border-radius: 999px; color: #ffcaa0;

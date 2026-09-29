@@ -72,6 +72,24 @@ window.addEventListener('load', () => setTimeout(async () => {
   chk('it gains a voice at the chord threshold', vChord > vBase, true);
   chk('and another at the flourish threshold', vFlour > vChord, true);
 
+  // ---- the badge must not MOVE anything when it comes and goes ----
+  // Reported from an iPhone SE: the screen twitched whenever a combo broke and restarted.
+  // The badge appears and disappears with the streak, and `min-height` only stopped it
+  // collapsing -- lit, the 🔥 sits on a taller line box than the digits, so it grew and
+  // stepped the board down. Arcade's badge is its own row; rush keeps its badge inside the
+  // score line, so the line grows instead. Both are checked because they fail differently.
+  for (const mode of ['arcade', 'rush']) {
+    F.start(mode);
+    await sleep(150);
+    const top = () => Math.round(document.getElementById('game').getBoundingClientRect().top);
+    F.streak = 0; F.updateStreakBadge();
+    const calm = top();
+    F.streak = 6; F.updateStreakBadge();
+    chk(mode + ': a combo starting does not move the board', top(), calm);
+    F.streak = 0; F.updateStreakBadge();
+    chk(mode + ': ...and breaking puts it back', top(), calm);
+  }
+
   // ---- the badge grows with the streak, and heats past the multiplier cap
   F.start('rush');
   const badge = document.getElementById('streak-badge');
