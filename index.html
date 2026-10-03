@@ -2712,7 +2712,7 @@
       crackerGap: m => Math.max(m >= LATE_GAP_AT ? CRACKER_MIN : CRACKER_PLATEAU,
                                 CRACKER_EVERY - Math.floor(Math.max(0, m - 1) / 3)),
       // the one knob that pays the player back for climbing
-      coinFruit: m => COIN_FRUIT_CHANCE + COIN_FRUIT_STEP * Math.min(m, MAX_LEVEL - 1),
+      coinFruit: m => ARCADE_COIN_BASE + COIN_FRUIT_STEP * Math.min(m, MAX_LEVEL - 1),
       crackerCount: () => 1,
     },
     rush: {
@@ -8081,7 +8081,8 @@
     const pct = v => `${Math.round(v * 1000) / 10}%`;
     const x = v => `×${gridMult(v)}`;
     const rows = [
-      [d("statCoinFruit"), pct(COIN_FRUIT_CHANCE), pct(coinFruitChance())],
+      // the base for THIS mode: arcade starts at 2% and climbs, rush sits at 6%
+      [d("statCoinFruit"), pct(rules().coinFruit(0)), pct(coinFruitChance())],
       [d("statCracker"),     pct(0),                 pct(crackerChance)],
       ...(crackerLevel() >= 1
           ? [[d("statCrackerEvery"), d("everyNTouch", CRACKER_EVERY),
@@ -8388,7 +8389,13 @@
   // with change to spare and the build stopped being a choice. Trimmed to bring purchases
   // back toward the design's one-relic-per-two-stages.
   const COIN_PAYOUT = st => 3 + st;         // coins for clearing stage `st`
-  const COIN_FRUIT_CHANCE = 0.06;           // a spawned fruit carries a coin this often
+  const COIN_FRUIT_CHANCE = 0.06;           // RUSH: a spawned fruit carries a coin this often
+  // Arcade runs its own, because it is the only mode where the rate climbs. Starting at the
+  // rush figure left the opening too rich AND the ending not rich enough; starting low lets
+  // the ladder cover real ground. 2% at Lv.1 and +2% a rung lands exactly on 30% at the top,
+  // which is the whole point of the number -- it is the counterweight to a cracker every
+  // touch and six fruit a turn.
+  const ARCADE_COIN_BASE = 0.02;
   // ...and in arcade, more often the deeper you are. The ladder only ever made arcade
   // HARDER -- more colours, more spawns, faster crackers -- with nothing coming back the
   // other way, so a long run was pure attrition. Two points per level, clamped at the top
@@ -10728,6 +10735,7 @@
       resetRun, serializeRun, restoreRun, FRUIT_POINTS, COLS,
       MODES, activeColors, spawnCount, crackerLevel, computeMaxLevel,
       crackerGap, crackerCount, LEVEL_AT, CRACKER_EVERY, CRACKER_MIN, MAX_COLORS, RUSH_COLORS,
+      ARCADE_COIN_BASE,
       FRUIT_TABLE_ORDER, SPAWN_MAX, CRACKER_PLATEAU, LATE_SPAWN_AT, LATE_GAP_AT,
       get FRUIT_SVG() { return FRUIT_SVG; },
       RECLAIM_MAX, buyInstant, get rowsBought() { return rowsBought; }, itemAffordable,

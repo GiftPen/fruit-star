@@ -183,14 +183,23 @@ window.addEventListener('load', () => setTimeout(async () => {
       if (F.coinCell[r][c] && F.grid[r][c] >= 0) n++;
     return n;
   };
-  chk('the rate really does climb', [F.coinFruitChance(0), F.coinFruitChance(3)], [0.06, 0.12]);
-  chk('a 10% roll carries no coin at Lv.1', coinAt(1, 0.10), 0);
-  chk('...and does at Lv.4, because the rate passed it', coinAt(4, 0.10), 1);
+  // The two ends are the design: 2% on the first rung, 30% on the last. They have to come
+  // out of the ladder's own length, not be written down twice -- add a rung and the step has
+  // to still land on 30, or the counterweight to Lv.15 quietly stops being what was agreed.
+  chk('it starts at the arcade base', Math.round(F.coinFruitChance(0) * 100),
+      Math.round(F.ARCADE_COIN_BASE * 100));
+  chk('and the ladder ends on 30%', Math.round(F.coinFruitChance(F.MAX_LEVEL - 1) * 100), 30);
+  chk('every rung moves it by the step', Math.round((F.coinFruitChance(5) - F.coinFruitChance(4)) * 1000),
+      Math.round(F.COIN_FRUIT_STEP * 1000));
+  // a roll of 3% is above Lv.1's 2% and below Lv.2's 4%
+  chk('a 3% roll carries no coin at Lv.1', coinAt(1, 0.03), 0);
+  chk('...and does at Lv.2, because the rate passed it', coinAt(2, 0.03), 1);
   // and it stops climbing where the ladder does, instead of riding an uncapped milestone
   chk('the rate is clamped at the top level',
-      Math.round(F.coinFruitChance(500) * 100),
-      Math.round((F.COIN_FRUIT_CHANCE + F.COIN_FRUIT_STEP * (F.MAX_LEVEL - 1)) * 100));
+      Math.round(F.coinFruitChance(500) * 100), 30);
+  // rush has its own base and no climb at all -- lowering arcade's opening must not touch it
   chk('rush does not get the arcade climb', F.MODES.rush.coinFruit(30), F.COIN_FRUIT_CHANCE);
+  chk('...and rush keeps its own base', F.MODES.rush.coinFruit(0) > F.ARCADE_COIN_BASE, true);
 
   // ---- and the odds table has to say the pace you are PLAYING at ----
   // It was printing the CRACKER_EVERY constant, so at Lv.8 the panel said "5터치마다" while
