@@ -25,6 +25,14 @@ for t in js-check rules-test items-test hud-fit device-fit sound-test i18n-test 
   fi
 done
 python3 tools/gen-catalog.py >/dev/null || fail=1
+python3 tools/gen-curves.py  >/dev/null || fail=1
+# both docs are generated from the game; if regenerating them changes anything, the file
+# in the repo was stale and someone would have read a wrong difficulty table as fact
+if ! git diff --quiet -- 유물.md 난이도-곡선.md; then
+  print -- '문서가 코드와 어긋나 다시 생성되었습니다 — 변경분을 커밋하세요:'
+  git diff --stat -- 유물.md 난이도-곡선.md
+  fail=1
+fi
 if (( ${#broke} )); then
   for t in $broke; do
     print -- "\n===== $t =====";
